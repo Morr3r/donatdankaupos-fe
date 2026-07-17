@@ -1,0 +1,10 @@
+node_modules/
+.git/
+.expo/
+.expo-export-*/
+android/
+ios/
+dist/
+output/
+*.log
+*.tsbuildinfo
