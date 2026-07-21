@@ -68,9 +68,9 @@ export const saleService = {
 
 export const shiftService = {
   current: () => apiRequest<Shift | null>('/shifts/current'),
-  open: (openingCash: number, terminalId: string) => apiRequest<Shift>('/shifts', {
+  open: (openingCash: number, openingBankBalance: number, terminalId: string) => apiRequest<Shift>('/shifts', {
     method: 'POST',
-    body: { openingCash, terminalId },
+    body: { openingBankBalance, openingCash, terminalId },
   }),
   close: (id: string, closingCash: number) => apiRequest<Shift>(`/shifts/${id}/close`, {
     method: 'POST',

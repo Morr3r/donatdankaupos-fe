@@ -36,7 +36,7 @@ export function MoreScreen() {
 
       <SectionHeader title="Operasional" />
       <GlassCard contentStyle={styles.menuCard}>
-        <MenuRow icon={WalletCards} label="Shift & kas laci" onPress={() => navigation.navigate('Shift')} subtitle="Buka, tutup, dan rekonsiliasi" />
+        <MenuRow icon={WalletCards} label="Shift & kas harian" onPress={() => navigation.navigate('Shift')} subtitle="Uang fisik, rekening, dan rekonsiliasi" />
         <MenuRow icon={PackageOpen} label="Stok produk" onPress={() => navigation.navigate('Inventory')} subtitle="Pantau stok menipis dan habis" />
         {user?.role !== 'cashier' ? <MenuRow icon={Donut} label="Kelola produk" onPress={() => navigation.navigate('Products')} subtitle="Edit menu, harga, foto, varian, dan topping" /> : null}
         <MenuRow icon={RefreshCw} label="Segarkan data" onPress={async () => {

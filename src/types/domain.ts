@@ -15,6 +15,7 @@ export interface Shift {
   id: string;
   openedAt: string;
   openingCash: number;
+  openingBankBalance: number;
   status: 'open' | 'closed';
   cashierId: string;
   terminalId: string;

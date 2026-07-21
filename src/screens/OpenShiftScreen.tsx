@@ -1,5 +1,5 @@
 import * as Haptics from 'expo-haptics';
-import { Banknote, CalendarDays, CircleDollarSign, Clock3, LogOut, Store } from 'lucide-react-native';
+import { Banknote, CalendarDays, CircleDollarSign, Clock3, Landmark, LogOut, Store } from 'lucide-react-native';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { BrandLogo, Button, Field, GlassCard, Screen, StatusPill } from '../components/ui';
@@ -13,34 +13,44 @@ import { formatCurrency } from '../utils/format';
 const cashSuggestions = [100000, 200000, 300000, 500000];
 
 export function OpenShiftScreen() {
-  const [openingCash, setOpeningCash] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [openingPhysicalCash, setOpeningPhysicalCash] = useState('');
+  const [openingBankBalance, setOpeningBankBalance] = useState('');
+  const [physicalError, setPhysicalError] = useState<string | null>(null);
+  const [bankError, setBankError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const user = useSessionStore((state) => state.user);
   const logout = useSessionStore((state) => state.logout);
   const openShift = useOperationsStore((state) => state.openShift);
-  const hasOpeningCash = openingCash.trim().length > 0;
+  const hasOpeningBalances = openingPhysicalCash.trim().length > 0 && openingBankBalance.trim().length > 0;
 
   const handleOpen = async () => {
-    if (!hasOpeningCash) {
-      setError('Uang kas awal wajib diisi. Jika laci kosong, masukkan 0.');
-      return;
-    }
-    const value = Number(openingCash.replace(/\D/g, ''));
-    if (!Number.isFinite(value) || value < 0) {
-      setError('Masukkan modal awal yang valid.');
-      return;
-    }
+    const physicalValue = Number(openingPhysicalCash.replace(/\D/g, ''));
+    const bankValue = Number(openingBankBalance.replace(/\D/g, ''));
+    const nextPhysicalError = openingPhysicalCash.trim().length === 0
+      ? 'Uang fisik wajib diisi. Jika laci kosong, masukkan 0.'
+      : !Number.isFinite(physicalValue) || physicalValue < 0
+        ? 'Masukkan uang fisik yang valid.'
+        : null;
+    const nextBankError = openingBankBalance.trim().length === 0
+      ? 'Uang rekening wajib diisi. Jika saldo kosong, masukkan 0.'
+      : !Number.isFinite(bankValue) || bankValue < 0
+        ? 'Masukkan uang rekening yang valid.'
+        : null;
+    setPhysicalError(nextPhysicalError);
+    setBankError(nextBankError);
+    setSubmitError(null);
+    if (nextPhysicalError || nextBankError) return;
     if (!TERMINAL_ID) {
-      setError('Perangkat kasir belum siap. Hubungi pengelola outlet.');
+      setSubmitError('Perangkat kasir belum siap. Hubungi pengelola outlet.');
       return;
     }
     setSubmitting(true);
     try {
-      await openShift(value, TERMINAL_ID);
+      await openShift(physicalValue, bankValue, TERMINAL_ID);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (openError) {
-      setError(openError instanceof Error ? openError.message : 'Shift tidak dapat dibuka.');
+      setSubmitError(openError instanceof Error ? openError.message : 'Shift tidak dapat dibuka.');
     } finally {
       setSubmitting(false);
     }
@@ -56,7 +66,7 @@ export function OpenShiftScreen() {
       <View style={styles.hero}>
         <StatusPill label="Wajib setiap hari" tone="warning" />
         <Text accessibilityRole="header" style={styles.title}>Buka shift hari ini</Text>
-        <Text style={styles.subtitle}>Sebelum mulai berjualan, isi uang kas awal untuk hari operasional baru.</Text>
+        <Text style={styles.subtitle}>Sebelum mulai berjualan, catat uang fisik dan saldo rekening hari ini.</Text>
       </View>
 
       <GlassCard contentStyle={styles.shiftCard}>
@@ -74,24 +84,37 @@ export function OpenShiftScreen() {
         </View>
 
         <Field
-          error={error}
+          error={physicalError}
           keyboardType="number-pad"
-          label="Uang kas awal hari ini"
+          label="Uang fisik"
           leftIcon={Banknote}
-          onChangeText={(value) => { setOpeningCash(value.replace(/\D/g, '')); setError(null); }}
+          onChangeText={(value) => { setOpeningPhysicalCash(value.replace(/\D/g, '')); setPhysicalError(null); setSubmitError(null); }}
           placeholder="0"
-          value={openingCash}
+          value={openingPhysicalCash}
         />
-        <Text style={styles.amountPreview}>{formatCurrency(Number(openingCash || 0))}</Text>
+        <Text style={styles.amountPreview}>{formatCurrency(Number(openingPhysicalCash || 0))}</Text>
 
+        <Text style={styles.suggestionLabel}>Nominal cepat uang fisik</Text>
         <View style={styles.suggestions}>
           {cashSuggestions.map((amount) => (
-            <Button key={amount} compact label={formatCurrency(amount).replace('Rp', 'Rp ')} onPress={() => setOpeningCash(String(amount))} style={styles.suggestionButton} variant={Number(openingCash) === amount ? 'primary' : 'secondary'} />
+            <Button key={amount} compact label={formatCurrency(amount).replace('Rp', 'Rp ')} onPress={() => { setOpeningPhysicalCash(String(amount)); setPhysicalError(null); setSubmitError(null); }} style={styles.suggestionButton} variant={Number(openingPhysicalCash) === amount ? 'primary' : 'secondary'} />
           ))}
         </View>
 
-        <Button disabled={!hasOpeningCash} icon={Clock3} label="Buka shift & mulai jualan" loading={submitting} onPress={handleOpen} />
-        <Text style={styles.helper}>Wajib diisi setiap hari. Jika tidak ada modal awal, masukkan angka 0.</Text>
+        <Field
+          error={bankError}
+          keyboardType="number-pad"
+          label="Uang rekening"
+          leftIcon={Landmark}
+          onChangeText={(value) => { setOpeningBankBalance(value.replace(/\D/g, '')); setBankError(null); setSubmitError(null); }}
+          placeholder="0"
+          value={openingBankBalance}
+        />
+        <Text style={styles.amountPreview}>{formatCurrency(Number(openingBankBalance || 0))}</Text>
+
+        {submitError ? <Text style={styles.formError}>{submitError}</Text> : null}
+        <Button disabled={!hasOpeningBalances} icon={Clock3} label="Buka shift & mulai jualan" loading={submitting} onPress={handleOpen} />
+        <Text style={styles.helper}>Kedua field wajib diisi setiap hari. Masukkan angka 0 jika uang fisik atau saldo rekening kosong.</Text>
       </GlassCard>
     </Screen>
   );
@@ -113,7 +136,9 @@ const styles = StyleSheet.create({
   summaryLabel: { color: palette.muted, fontFamily: type.medium, fontSize: 10, marginTop: spacing.sm },
   summaryValue: { color: palette.ink, fontFamily: type.bold, fontSize: 14, marginTop: 2 },
   amountPreview: { color: palette.cocoa, fontFamily: type.display, fontSize: 25, textAlign: 'center', marginTop: -spacing.sm },
+  suggestionLabel: { color: palette.muted, fontFamily: type.medium, fontSize: 10, marginBottom: -spacing.sm },
   suggestions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
   suggestionButton: { flexGrow: 1, minWidth: 112 },
+  formError: { color: palette.danger, fontFamily: type.medium, fontSize: 11, lineHeight: 16, textAlign: 'center' },
   helper: { color: palette.muted, fontFamily: type.regular, fontSize: 10, lineHeight: 15, textAlign: 'center' },
 });

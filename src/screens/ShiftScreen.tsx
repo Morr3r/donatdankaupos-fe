@@ -1,7 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Alert, StyleSheet, Text, View } from 'react-native';
-import { Banknote, Clock3, LockKeyhole, ReceiptText, ShieldCheck, WalletCards } from 'lucide-react-native';
+import { Banknote, Clock3, Landmark, LockKeyhole, ReceiptText, ShieldCheck, WalletCards } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { Button, Divider, Field, GlassCard, Header, Screen, SectionHeader, StatusPill } from '../components/ui';
 import type { RootStackParamList } from '../navigation/types';
@@ -19,6 +19,7 @@ export function ShiftScreen({ navigation }: NativeStackScreenProps<RootStackPara
   const cashSales = useMemo(() => shiftTransactions.filter((item) => item.status === 'paid' && item.paymentMethod === 'cash').reduce((sum, item) => sum + item.total, 0), [shiftTransactions]);
   const nonCashSales = useMemo(() => shiftTransactions.filter((item) => item.status === 'paid' && item.paymentMethod !== 'cash').reduce((sum, item) => sum + item.total, 0), [shiftTransactions]);
   const expectedCash = (shift?.openingCash ?? 0) + cashSales;
+  const expectedBankBalance = (shift?.openingBankBalance ?? 0) + nonCashSales;
   const actual = Number(actualCash.replace(/\D/g, '') || 0);
   const difference = actual - expectedCash;
 
@@ -46,7 +47,7 @@ export function ShiftScreen({ navigation }: NativeStackScreenProps<RootStackPara
 
   return (
     <Screen bottomInset={spacing.xl}>
-      <Header onBack={navigation.goBack} right={<StatusPill label={shift.status === 'open' ? 'Aktif' : 'Ditutup'} tone={shift.status === 'open' ? 'success' : 'danger'} />} subtitle={`Dibuka ${formatDateTime(shift.openedAt)}`} title="Shift & kas laci" />
+      <Header onBack={navigation.goBack} right={<StatusPill label={shift.status === 'open' ? 'Aktif' : 'Ditutup'} tone={shift.status === 'open' ? 'success' : 'danger'} />} subtitle={`Dibuka ${formatDateTime(shift.openedAt)}`} title="Shift & kas harian" />
 
       <GlassCard dark contentStyle={styles.heroCard}>
         <View style={styles.heroTop}><View style={styles.heroIcon}><WalletCards color={palette.honeySoft} size={24} /></View><View><Text style={styles.heroTitle}>Shift {shift.id.slice(-6).toUpperCase()}</Text><Text style={styles.heroSubtitle}>Terminal {shift.terminalId || TERMINAL_ID} · sejak {formatClock(shift.openedAt)}</Text></View></View>
@@ -62,12 +63,17 @@ export function ShiftScreen({ navigation }: NativeStackScreenProps<RootStackPara
 
       <SectionHeader title="Rekonsiliasi kas" />
       <GlassCard contentStyle={styles.reconcileCard}>
-        <ReconcileRow label="Modal awal" value={formatCurrency(shift.openingCash)} />
+        <ReconcileRow icon={<Banknote color={palette.honey} size={17} />} label="Uang fisik awal" value={formatCurrency(shift.openingCash)} />
         <ReconcileRow label="Penjualan tunai" value={formatCurrency(cashSales)} />
         <Divider />
-        <ReconcileRow emphasis label="Kas seharusnya" value={formatCurrency(expectedCash)} />
+        <ReconcileRow emphasis label="Uang fisik seharusnya" value={formatCurrency(expectedCash)} />
         <Field editable={shift.status === 'open'} keyboardType="number-pad" label="Kas aktual di laci" leftIcon={Banknote} onChangeText={(value) => setActualCash(value.replace(/\D/g, ''))} placeholder="Hitung uang fisik" value={actualCash} />
         {actualCash ? <View style={[styles.difference, difference !== 0 && styles.differenceWarning]}><Text style={[styles.differenceLabel, difference !== 0 && styles.differenceTextWarning]}>Selisih kas</Text><Text style={[styles.differenceValue, difference !== 0 && styles.differenceTextWarning]}>{difference > 0 ? '+' : ''}{formatCurrency(difference)}</Text></View> : null}
+        <Divider />
+        <ReconcileRow icon={<Landmark color={palette.rose} size={17} />} label="Uang rekening awal" value={formatCurrency(shift.openingBankBalance ?? 0)} />
+        <ReconcileRow label="Penjualan non-tunai" value={formatCurrency(nonCashSales)} />
+        <Divider />
+        <ReconcileRow emphasis label="Rekening estimasi" value={formatCurrency(expectedBankBalance)} />
       </GlassCard>
 
       <View style={styles.auditNote}><ShieldCheck color={palette.success} size={18} /><Text style={styles.auditText}>Setiap perubahan shift tersimpan bersama petugas, perangkat, dan waktu kejadian.</Text></View>
@@ -76,8 +82,8 @@ export function ShiftScreen({ navigation }: NativeStackScreenProps<RootStackPara
   );
 }
 
-function ReconcileRow({ label, value, emphasis }: { label: string; value: string; emphasis?: boolean }) {
-  return <View style={styles.reconcileRow}><Text style={[styles.reconcileLabel, emphasis && styles.reconcileEmphasis]}>{label}</Text><Text style={[styles.reconcileValue, emphasis && styles.reconcileValueEmphasis]}>{value}</Text></View>;
+function ReconcileRow({ label, value, emphasis, icon }: { label: string; value: string; emphasis?: boolean; icon?: React.ReactNode }) {
+  return <View style={styles.reconcileRow}><View style={styles.reconcileLabelRow}>{icon}<Text style={[styles.reconcileLabel, emphasis && styles.reconcileEmphasis]}>{label}</Text></View><Text style={[styles.reconcileValue, emphasis && styles.reconcileValueEmphasis]}>{value}</Text></View>;
 }
 
 const styles = StyleSheet.create({
@@ -95,6 +101,7 @@ const styles = StyleSheet.create({
   metricValue: { color: palette.ink, fontFamily: type.bold, fontSize: 15, marginTop: 3 },
   reconcileCard: { padding: spacing.lg, gap: spacing.md },
   reconcileRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  reconcileLabelRow: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   reconcileLabel: { color: palette.muted, fontFamily: type.medium, fontSize: 12 },
   reconcileValue: { color: palette.ink, fontFamily: type.semibold, fontSize: 12 },
   reconcileEmphasis: { color: palette.ink, fontFamily: type.bold },

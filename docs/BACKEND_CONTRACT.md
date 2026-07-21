@@ -53,8 +53,9 @@ Tambahkan `POST /auth/refresh`, `POST /auth/logout`, dan `GET /me`. Role: `cashi
 | POST | `/sync/batch` | Terima event offline berurutan |
 
 Shift mengikuti hari operasional `Asia/Jakarta`. Setelah tanggal berganti, shift lama ditutup
-otomatis tanpa membuat shift baru; kasir wajib mengisi `openingCash` baru sebelum penjualan
-dapat dilanjutkan. Nilai `0` valid, tetapi field tidak boleh dilewati.
+otomatis tanpa membuat shift baru; kasir wajib mengisi `openingCash` untuk uang fisik dan
+`openingBankBalance` untuk saldo rekening sebelum penjualan dapat dilanjutkan. Nilai `0`
+valid untuk masing-masing saldo, tetapi kedua field tidak boleh dilewati pada aplikasi.
 
 Respons `/reports/sales-summary` menyertakan `pieceCount`, `costPerItem`, `costOfGoodsSold`,
 `netProfit`, dan `netMarginPercent`. HPP saat ini dipukul rata Rp2.650 per pcs donat
