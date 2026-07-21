@@ -27,7 +27,9 @@ export function ProductManagementScreen({ navigation }: Props) {
     const term = query.trim().toLowerCase();
     return products.filter((product) => (
       (category === 'Semua' || product.category === category)
-      && (!term || product.name.toLowerCase().includes(term) || product.sku.toLowerCase().includes(term))
+      && (!term || [product.name, product.sku, product.category, product.sourcePackaging]
+        .filter(Boolean)
+        .some((value) => value?.toLowerCase().includes(term)))
     ));
   }, [category, products, query]);
 
@@ -58,10 +60,10 @@ export function ProductManagementScreen({ navigation }: Props) {
   };
 
   return (
-    <Screen contentStyle={styles.screen} scroll={false}>
+    <Screen bottomInset={spacing.md} contentStyle={styles.screen} scroll={false}>
       <Header onBack={navigation.goBack} subtitle="Atur menu, harga, foto, varian, dan topping" title="Kelola produk" />
       <View style={[styles.toolbar, isWide && styles.toolbarWide]}>
-        <View style={styles.search}><SearchField onChangeText={setQuery} placeholder="Cari nama atau SKU" value={query} /></View>
+        <View style={[styles.search, isWide && styles.searchWide]}><SearchField onChangeText={setQuery} placeholder="Cari nama, SKU, kategori, atau kemasan" value={query} /></View>
         <Button compact icon={Plus} label="Tambah produk" onPress={() => navigation.navigate('ProductEditor')} style={styles.addButton} />
       </View>
       <ScrollView contentContainerStyle={styles.categories} horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
@@ -79,6 +81,7 @@ export function ProductManagementScreen({ navigation }: Props) {
             data={filtered}
             keyExtractor={(item) => item.id}
             keyboardDismissMode="on-drag"
+            keyboardShouldPersistTaps="handled"
             ListEmptyComponent={<EmptyProducts />}
             onRefresh={load}
             refreshing={isLoading}
@@ -90,6 +93,7 @@ export function ProductManagementScreen({ navigation }: Props) {
               />
             )}
             showsVerticalScrollIndicator={false}
+            style={styles.productList}
           />
         </GlassCard>
       ) : (
@@ -98,6 +102,7 @@ export function ProductManagementScreen({ navigation }: Props) {
           data={filtered}
           keyExtractor={(item) => item.id}
           keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
           ListEmptyComponent={<EmptyProducts />}
           onRefresh={load}
           refreshing={isLoading}
@@ -109,6 +114,7 @@ export function ProductManagementScreen({ navigation }: Props) {
             />
           )}
           showsVerticalScrollIndicator={false}
+          style={styles.productList}
         />
       )}
     </Screen>
@@ -194,15 +200,16 @@ function EmptyProducts() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, minWidth: 0, gap: spacing.md },
-  toolbar: { gap: spacing.sm },
+  screen: { flex: 1, minHeight: 0, minWidth: 0, gap: spacing.md },
+  toolbar: { flexShrink: 0, gap: spacing.sm },
   toolbarWide: { flexDirection: 'row', alignItems: 'center' },
-  search: { flex: 1 },
-  addButton: { minWidth: 190 },
+  search: { width: '100%', flexShrink: 0 },
+  searchWide: { width: 'auto', flex: 1 },
+  addButton: { minWidth: 190, flexShrink: 0 },
   categoryScroll: {
     alignSelf: 'stretch',
     flexGrow: 0,
-    flexShrink: 1,
+    flexShrink: 0,
     minWidth: 0,
     maxWidth: '100%',
     minHeight: 50,
@@ -212,7 +219,8 @@ const styles = StyleSheet.create({
   resultBar: { minHeight: 28, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
   resultText: { color: palette.muted, fontFamily: type.semibold, fontSize: 11 },
   loadError: { flex: 1, color: palette.danger, fontFamily: type.medium, fontSize: 10, textAlign: 'right' },
-  list: { paddingBottom: spacing.xl },
+  productList: { flex: 1, minHeight: 0 },
+  list: { paddingBottom: spacing.xxl },
   card: { marginBottom: spacing.sm },
   mobileCard: { padding: spacing.md, gap: spacing.md },
   mobileTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
