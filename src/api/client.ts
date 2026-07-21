@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { normalizeBrandCopy } from '../utils/brand';
 
 const apiErrorSchema = z.object({
   detail: z.unknown().optional(),
@@ -73,7 +74,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     }
 
     if (response.status === 204) return undefined as T;
-    return (await response.json()) as T;
+    return normalizeBrandCopy((await response.json()) as T);
   } catch (error) {
     if (error instanceof ApiError) throw error;
     if (error instanceof Error && error.name === 'AbortError') {

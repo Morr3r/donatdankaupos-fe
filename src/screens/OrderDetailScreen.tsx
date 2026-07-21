@@ -1,16 +1,19 @@
 import * as Haptics from 'expo-haptics';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { RotateCcw, ShieldAlert } from 'lucide-react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Platform, StyleSheet, Text, View } from 'react-native';
+import { RotateCcw, Share2, ShieldAlert } from 'lucide-react-native';
+import ViewShot, { type ViewShotRef } from 'react-native-view-shot';
 import { saleService } from '../api/services';
+import { BcaTransferDetails } from '../components/bca-transfer-details';
 import { Button, Divider, Field, FormModal, GlassCard, Header, Screen, SectionHeader, StatusPill } from '../components/ui';
 import type { RootStackParamList } from '../navigation/types';
 import { useOperationsStore } from '../store/operationsStore';
 import { useSessionStore } from '../store/sessionStore';
 import { palette, radius, spacing, type } from '../theme/tokens';
 import { selectedOptionSummary } from '../utils/cartOptions';
-import { formatCurrency, formatDateTime, orderTypeLabels, paymentLabels } from '../utils/format';
+import { formatCurrency, formatDateTime, orderTypeLabels, paymentLabels, pricingModeLabels } from '../utils/format';
+import { shareInvoiceImage } from '../utils/share-invoice';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetail'>;
 
@@ -18,6 +21,7 @@ export function OrderDetailScreen({ navigation, route }: Props) {
   const cachedTransaction = useOperationsStore((state) => state.transactions.find((item) => item.id === route.params.transactionId));
   const refund = useOperationsStore((state) => state.refundTransaction);
   const user = useSessionStore((state) => state.user);
+  const invoiceRef = useRef<ViewShotRef>(null);
   const [refundOpen, setRefundOpen] = useState(false);
   const [reason, setReason] = useState('');
   const [managerPin, setManagerPin] = useState('');
@@ -25,6 +29,8 @@ export function OrderDetailScreen({ navigation, route }: Props) {
   const [refunding, setRefunding] = useState(false);
   const [loadedTransaction, setLoadedTransaction] = useState(cachedTransaction);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [sharingInvoice, setSharingInvoice] = useState(false);
+  const [shareFeedback, setShareFeedback] = useState<{ message: string; tone: 'success' | 'danger' } | null>(null);
   const transaction = cachedTransaction ?? loadedTransaction;
 
   useEffect(() => {
@@ -38,6 +44,8 @@ export function OrderDetailScreen({ navigation, route }: Props) {
   }, [cachedTransaction, route.params.transactionId]);
 
   if (!transaction) return <Screen><Header onBack={navigation.goBack} title="Detail transaksi" /><Text style={styles.notFound}>{loadError ?? 'Memuat transaksi…'}</Text></Screen>;
+
+  const safeReceiptNo = transaction.receiptNo.replace(/[^a-zA-Z0-9_-]/g, '-');
 
   const handleRefund = async () => {
     if (reason.trim().length < 5) {
@@ -60,14 +68,45 @@ export function OrderDetailScreen({ navigation, route }: Props) {
     }
   };
 
+  const shareInvoice = async () => {
+    if (!invoiceRef.current || sharingInvoice) return;
+
+    setSharingInvoice(true);
+    setShareFeedback(null);
+    try {
+      const imageUri = await invoiceRef.current.capture();
+      const result = await shareInvoiceImage(imageUri, transaction.receiptNo);
+      if (result === 'downloaded') {
+        setShareFeedback({ message: 'Invoice JPG berhasil diunduh.', tone: 'success' });
+      } else if (result === 'unavailable') {
+        setShareFeedback({ message: 'Fitur berbagi tidak tersedia di perangkat ini.', tone: 'danger' });
+      }
+    } catch (shareError) {
+      if (shareError instanceof Error && shareError.name === 'AbortError') return;
+      setShareFeedback({ message: 'Invoice JPG belum dapat dibuat. Silakan coba lagi.', tone: 'danger' });
+    } finally {
+      setSharingInvoice(false);
+    }
+  };
+
   return (
     <Screen bottomInset={spacing.xl}>
       <Header onBack={navigation.goBack} subtitle={formatDateTime(transaction.createdAt)} title="Detail transaksi" />
+      <ViewShot
+        ref={invoiceRef}
+        options={{
+          fileName: `invoice-${safeReceiptNo}`,
+          format: 'jpg',
+          quality: 0.95,
+          result: Platform.OS === 'web' ? 'data-uri' : 'tmpfile',
+        }}
+        style={styles.invoiceSurface}
+      >
       <GlassCard dark contentStyle={styles.heroCard}>
         <View style={styles.heroTop}><Text style={styles.receiptNo}>{transaction.receiptNo}</Text><StatusPill label={transaction.status === 'paid' ? 'Lunas' : 'Refund'} tone={transaction.status === 'paid' ? 'success' : 'danger'} /></View>
         <Text style={styles.heroLabel}>Total pembayaran</Text>
         <Text style={styles.heroTotal}>{formatCurrency(transaction.total)}</Text>
-        <Text style={styles.heroMeta}>{paymentLabels[transaction.paymentMethod]} · {orderTypeLabels[transaction.orderType]} · {transaction.itemCount} item</Text>
+        <Text style={styles.heroMeta}>{pricingModeLabels[transaction.pricingMode]} · {paymentLabels[transaction.paymentMethod]} · {orderTypeLabels[transaction.orderType]} · {transaction.itemCount} item</Text>
       </GlassCard>
 
       <SectionHeader title="Rincian item" />
@@ -85,10 +124,19 @@ export function OrderDetailScreen({ navigation, route }: Props) {
         <InfoRow label="Pelanggan" value={transaction.customerName ?? 'Pelanggan umum'} />
         <InfoRow label="Kasir" value={transaction.cashierName} />
         <InfoRow label="Metode bayar" value={paymentLabels[transaction.paymentMethod]} />
+        <InfoRow label="Jenis harga" value={pricingModeLabels[transaction.pricingMode]} />
         <InfoRow label="Uang diterima" value={formatCurrency(transaction.amountPaid)} />
         <InfoRow label="Kembalian" value={formatCurrency(transaction.change)} />
         <InfoRow label="Status pencatatan" value="Tersimpan" />
       </GlassCard>
+
+      {transaction.paymentMethod === 'transfer' ? (
+        <>
+          <SectionHeader title="Rekening transfer" />
+          <BcaTransferDetails helper="Rekening tujuan untuk pembayaran invoice ini." />
+        </>
+      ) : null}
+      </ViewShot>
 
       <SectionHeader title="Profit transaksi" />
       <GlassCard contentStyle={styles.profitCard}>
@@ -101,7 +149,16 @@ export function OrderDetailScreen({ navigation, route }: Props) {
       </GlassCard>
 
       <View style={styles.actions}>
+        <Button icon={Share2} label="Bagikan invoice (JPG)" loading={sharingInvoice} onPress={shareInvoice} variant="secondary" />
         {transaction.status === 'paid' ? <Button icon={RotateCcw} label="Refund transaksi" onPress={() => { setRefundOpen(true); setRefundError(null); }} variant="danger" /> : null}
+        {shareFeedback ? (
+          <Text
+            accessibilityLiveRegion="polite"
+            style={[styles.shareFeedback, shareFeedback.tone === 'success' ? styles.shareFeedbackSuccess : styles.shareFeedbackDanger]}
+          >
+            {shareFeedback.message}
+          </Text>
+        ) : null}
       </View>
       <View style={styles.securityNote}><ShieldAlert color={palette.honey} size={17} /><Text style={styles.securityText}>Semua refund wajib memiliki alasan audit; kasir juga memerlukan PIN manager.</Text></View>
 
@@ -125,6 +182,7 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
+  invoiceSurface: { width: '100%', overflow: 'hidden', padding: spacing.sm, backgroundColor: palette.cream, borderRadius: radius.lg },
   heroCard: { padding: spacing.lg, minHeight: 180 },
   heroTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   receiptNo: { color: palette.white, fontFamily: type.bold, fontSize: 13 },
@@ -151,6 +209,9 @@ const styles = StyleSheet.create({
   profitNegative: { color: palette.danger },
   profitHelper: { color: palette.muted, fontFamily: type.regular, fontSize: 10, lineHeight: 15 },
   actions: { gap: spacing.xs, marginTop: spacing.lg },
+  shareFeedback: { fontFamily: type.medium, fontSize: 11, lineHeight: 17, textAlign: 'center', paddingHorizontal: spacing.sm },
+  shareFeedbackSuccess: { color: palette.success },
+  shareFeedbackDanger: { color: palette.danger },
   securityNote: { minHeight: 52, borderRadius: radius.md, backgroundColor: palette.honeySoft, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, marginTop: spacing.md, paddingHorizontal: spacing.md },
   securityText: { flex: 1, color: '#805307', fontFamily: type.medium, fontSize: 10, lineHeight: 15 },
   notFound: { color: palette.danger, fontFamily: type.medium, textAlign: 'center', marginTop: spacing.xl },

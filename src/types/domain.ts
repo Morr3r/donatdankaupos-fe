@@ -39,6 +39,8 @@ export interface Product {
   description: string;
   category: ProductCategory;
   price: number;
+  resellerPrice: number | null;
+  isResellerOnly: boolean;
   stock: number | null;
   trackInventory: boolean;
   lowStockThreshold: number;
@@ -93,6 +95,7 @@ export interface CartItem {
 
 export type OrderType = 'takeaway' | 'dine_in' | 'delivery';
 export type PaymentMethod = 'cash' | 'qris' | 'card' | 'transfer';
+export type PricingMode = 'customer' | 'reseller';
 export type TransactionStatus = 'paid' | 'refunded';
 
 export interface CartTotals {
@@ -109,6 +112,7 @@ export interface SaleRequest {
   items: CartItem[];
   orderType: OrderType;
   paymentMethod: PaymentMethod;
+  pricingMode: PricingMode;
   customerName?: string;
   notes?: string;
   voucherCode?: string;
@@ -129,7 +133,12 @@ export interface Transaction {
   pieceCount: number;
   paymentMethod: PaymentMethod;
   orderType: OrderType;
+  pricingMode: PricingMode;
   status: TransactionStatus;
+  subtotal: number;
+  discount: number;
+  tax: number;
+  service: number;
   total: number;
   amountPaid: number;
   change: number;

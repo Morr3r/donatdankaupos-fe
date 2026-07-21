@@ -1,20 +1,20 @@
 import * as Haptics from 'expo-haptics';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ShoppingBag, Sparkles, Trash2 } from 'lucide-react-native';
 import { useCallback, useMemo, useState } from 'react';
 import { Alert, FlatList, Platform, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CartFloatingBar, CartRow, ProductCard } from '../components/pos';
+import { CartFloatingBar, CartRow, PricingModeSelector, ProductCard } from '../components/pos';
 import { ProductSelectionModal, type ProductSelectionValue } from '../components/product-selection-modal';
 import { TERMINAL_ID } from '../api/client';
-import { Button, Chip, Divider, GlassCard, Header, IconButton, Screen, SearchField, SectionHeader } from '../components/ui';
+import { Button, Chip, Divider, GlassCard, Header, IconButton, Screen, SearchField } from '../components/ui';
 import type { RootStackParamList } from '../navigation/types';
 import { useCatalogStore } from '../store/catalogStore';
 import { usePOSStore } from '../store/posStore';
 import { useSessionStore } from '../store/sessionStore';
 import { palette, radius, spacing, type } from '../theme/tokens';
-import type { Product, ProductCategory } from '../types/domain';
+import type { PricingMode, Product, ProductCategory } from '../types/domain';
 import { formatCurrency, getCartTotals } from '../utils/format';
 
 export function POSScreen() {
@@ -31,12 +31,13 @@ export function POSScreen() {
   const isLoading = useCatalogStore((state) => state.isLoading);
   const loadCatalog = useCatalogStore((state) => state.load);
   const user = useSessionStore((state) => state.user);
-  const categories: ProductCategory[] = ['Semua', ...catalogCategories];
   const cart = usePOSStore((state) => state.cart);
   const search = usePOSStore((state) => state.search);
   const category = usePOSStore((state) => state.category);
+  const pricingMode = usePOSStore((state) => state.pricingMode);
   const setSearch = usePOSStore((state) => state.setSearch);
   const setCategory = usePOSStore((state) => state.setCategory);
+  const setPricingMode = usePOSStore((state) => state.setPricingMode);
   const addProduct = usePOSStore((state) => state.addProduct);
   const changeQuantity = usePOSStore((state) => state.changeQuantity);
   const removeLine = usePOSStore((state) => state.removeLine);
@@ -52,15 +53,30 @@ export function POSScreen() {
     counts[item.productId] = (counts[item.productId] ?? 0) + item.quantity;
     return counts;
   }, {}), [cart]);
+  const resellerProductCount = useMemo(() => products.filter((product) => product.resellerPrice != null).length, [products]);
+  const modeProducts = useMemo(
+    () => pricingMode === 'reseller'
+      ? products.filter((product) => product.resellerPrice != null)
+      : products.filter((product) => !product.isResellerOnly),
+    [pricingMode, products],
+  );
+  const categories: ProductCategory[] = useMemo(() => {
+    const availableCategories = new Set(modeProducts.map((product) => product.category));
+    return ['Semua', ...catalogCategories.filter((item) => availableCategories.has(item))];
+  }, [catalogCategories, modeProducts]);
 
   const filteredProducts = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return products.filter((product) => {
+    return modeProducts.filter((product) => {
       const inCategory = category === 'Semua' || product.category === category;
       const matchesQuery = !query || product.name.toLowerCase().includes(query) || product.sku.toLowerCase().includes(query);
       return inCategory && matchesQuery;
     });
-  }, [category, products, search]);
+  }, [category, modeProducts, search]);
+
+  useFocusEffect(useCallback(() => {
+    void loadCatalog().catch(() => undefined);
+  }, [loadCatalog]));
 
   const handleAdd = useCallback(async (product: Product) => {
     setSelectedProduct(product);
@@ -73,6 +89,34 @@ export function POSScreen() {
     await Haptics.selectionAsync();
     setTimeout(() => setLastAdded(null), 1300);
   }, [addProduct]);
+
+  const applyPricingMode = useCallback((nextMode: PricingMode) => {
+    if (nextMode === pricingMode) return;
+    if (cart.length) clearCart();
+    setPricingMode(nextMode);
+    setCategory('Semua');
+    setSelectedProduct(null);
+    setLastAdded(null);
+    Haptics.selectionAsync().catch(() => undefined);
+  }, [cart.length, clearCart, pricingMode, setCategory, setPricingMode]);
+
+  const confirmPricingMode = useCallback((nextMode: PricingMode) => {
+    if (nextMode === pricingMode) return;
+    if (!cart.length) {
+      applyPricingMode(nextMode);
+      return;
+    }
+    const nextLabel = nextMode === 'reseller' ? 'reseller' : 'pelanggan';
+    const message = `${itemCount} item di keranjang akan dikosongkan agar harga tidak tercampur.`;
+    if (Platform.OS === 'web') {
+      if (globalThis.confirm(`Ganti ke harga ${nextLabel}?\n\n${message}`)) applyPricingMode(nextMode);
+      return;
+    }
+    Alert.alert(`Ganti ke harga ${nextLabel}?`, message, [
+      { text: 'Batal', style: 'cancel' },
+      { text: 'Ganti harga', style: 'destructive', onPress: () => applyPricingMode(nextMode) },
+    ]);
+  }, [applyPricingMode, cart.length, itemCount, pricingMode]);
 
   const performClearCart = useCallback(() => {
     clearCart();
@@ -94,6 +138,7 @@ export function POSScreen() {
 
   const catalogHeader = (
     <View>
+      <PricingModeSelector onChange={confirmPricingMode} resellerCount={resellerProductCount} value={pricingMode} />
       <View style={styles.toolsRow}>
         <View style={styles.searchWrap}><SearchField onChangeText={setSearch} value={search} /></View>
       </View>
@@ -101,7 +146,7 @@ export function POSScreen() {
         {categories.map((item) => <Chip key={item} label={item} onPress={() => setCategory(item)} selected={category === item} />)}
       </ScrollView>
       <View style={styles.listHeading}>
-        <Text style={styles.resultText}>{filteredProducts.length} produk tersedia</Text>
+        <Text style={styles.resultText}>{filteredProducts.length} produk · harga {pricingMode === 'reseller' ? 'reseller' : 'pelanggan'}</Text>
         {lastAdded ? <View style={styles.addedPill}><Sparkles color={palette.success} size={14} /><Text style={styles.addedText}>{lastAdded} ditambahkan</Text></View> : null}
       </View>
     </View>
@@ -119,7 +164,7 @@ export function POSScreen() {
       ListEmptyComponent={<EmptyCatalog search={search} />}
       ListHeaderComponent={catalogHeader}
       numColumns={numColumns}
-      renderItem={({ item }) => <ProductCard cartQuantity={productQuantities[item.id] ?? 0} horizontal={isPhone} onPress={handleAdd} product={item} style={[styles.productCell, isPhone ? styles.productCellPhone : { maxWidth: `${100 / numColumns - 2}%` }]} />}
+      renderItem={({ item }) => <ProductCard cartQuantity={productQuantities[item.id] ?? 0} horizontal={isPhone} onPress={handleAdd} pricingMode={pricingMode} product={item} style={[styles.productCell, isPhone ? styles.productCellPhone : { maxWidth: `${100 / numColumns - 2}%` }]} />}
       refreshing={isLoading}
       onRefresh={loadCatalog}
       showsVerticalScrollIndicator={false}
@@ -131,27 +176,28 @@ export function POSScreen() {
     <Screen bottomInset={0} contentStyle={styles.screen} scroll={false}>
       <Header eyebrow={`Terminal ${TERMINAL_ID || '-'}`} subtitle="Pilih produk, opsi, lalu jumlahnya" title="Kasir" />
       {isTablet ? (
-        <View style={styles.tabletLayout}>
+        <View style={[styles.tabletLayout, { paddingBottom: 102 + insets.bottom }]}>
           <View style={styles.catalogPane}>{productList}</View>
-          <CartPanel cart={cart} itemCount={itemCount} onChange={changeQuantity} onCheckout={() => navigation.navigate('Checkout')} onClear={confirmClearCart} onRemove={removeLine} total={totals.total} />
+          <CartPanel cart={cart} itemCount={itemCount} onChange={changeQuantity} onCheckout={() => navigation.navigate('Checkout')} onClear={confirmClearCart} onRemove={removeLine} pricingMode={pricingMode} total={totals.total} />
         </View>
       ) : (
         <>
           <View style={styles.mobileList}>{productList}</View>
           {itemCount > 0 ? (
-            <View style={[styles.floatingWrap, { bottom: 94 + insets.bottom }]}><CartFloatingBar compact={width < 360} count={itemCount} onClear={confirmClearCart} onPress={() => navigation.navigate('Checkout')} total={totals.total} /></View>
+            <View style={[styles.floatingWrap, { bottom: 94 + insets.bottom }]}><CartFloatingBar compact={width < 360} count={itemCount} onClear={confirmClearCart} onPress={() => navigation.navigate('Checkout')} pricingMode={pricingMode} total={totals.total} /></View>
           ) : null}
         </>
       )}
-      <ProductSelectionModal onAdd={confirmAdd} onClose={() => setSelectedProduct(null)} product={selectedProduct} />
+      <ProductSelectionModal onAdd={confirmAdd} onClose={() => setSelectedProduct(null)} pricingMode={pricingMode} product={selectedProduct} />
     </Screen>
   );
 }
 
-function CartPanel({ cart, itemCount, total, onChange, onRemove, onClear, onCheckout }: {
+function CartPanel({ cart, itemCount, total, pricingMode, onChange, onRemove, onClear, onCheckout }: {
   cart: ReturnType<typeof usePOSStore.getState>['cart'];
   itemCount: number;
   total: number;
+  pricingMode: PricingMode;
   onChange: (lineId: string, delta: number) => void;
   onRemove: (lineId: string) => void;
   onClear: () => void;
@@ -160,7 +206,7 @@ function CartPanel({ cart, itemCount, total, onChange, onRemove, onClear, onChec
   return (
     <GlassCard style={styles.cartPanel} contentStyle={styles.cartPanelInner}>
       <View style={styles.cartPanelHeader}>
-        <View><Text style={styles.cartPanelTitle}>Keranjang</Text><Text style={styles.cartPanelMeta}>{itemCount} item</Text></View>
+        <View><Text style={styles.cartPanelTitle}>Keranjang</Text><Text style={styles.cartPanelMeta}>{itemCount} item · Harga {pricingMode === 'reseller' ? 'reseller' : 'pelanggan'}</Text></View>
         {cart.length ? <IconButton icon={Trash2} label="Kosongkan keranjang" onPress={onClear} tone="danger" /> : null}
       </View>
       <Divider />
@@ -196,7 +242,7 @@ const styles = StyleSheet.create({
   addedPill: { minHeight: 30, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: spacing.sm, borderRadius: radius.pill, backgroundColor: palette.successSoft },
   addedText: { color: palette.success, fontFamily: type.bold, fontSize: 10 },
   mobileList: { flex: 1 },
-  tabletLayout: { flex: 1, flexDirection: 'row', gap: spacing.md, paddingBottom: spacing.md },
+  tabletLayout: { flex: 1, flexDirection: 'row', gap: spacing.md },
   catalogPane: { flex: 1.7 },
   productList: { flexGrow: 1 },
   productRow: { gap: spacing.sm, marginBottom: spacing.sm },

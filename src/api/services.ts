@@ -26,6 +26,8 @@ export interface ProductInput {
   description: string;
   category: string;
   price: number;
+  resellerPrice?: number | null;
+  isResellerOnly?: boolean;
   stock: number | null;
   trackInventory: boolean;
   lowStockThreshold?: number;

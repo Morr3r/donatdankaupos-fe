@@ -58,6 +58,10 @@ untuk seluruh produk dan topping. Paket isi 6/12 dikonversi ke jumlah pcs sebelu
 Setiap respons transaksi juga menyertakan `pieceCount`, `costPerItem`, `costOfGoodsSold`,
 `netProfit`, dan `netMarginPercent`. `netProfit` dihitung sebagai total transaksi dikurangi total HPP.
 
+Setiap produk dapat memiliki `resellerPrice` (integer rupiah atau `null`). Produk dengan nilai
+`null` tidak tersedia pada mode harga reseller. Harga pelanggan tetap memakai `price`.
+Produk dengan `isResellerOnly: true` hanya ditampilkan dan dapat dijual pada mode reseller.
+
 ## Create sale
 
 `POST /sales` wajib menerima header `Idempotency-Key`. Simpan key per outlet minimal 24 jam dan kembalikan response transaksi awal untuk retry dengan payload identik. Payload mengikuti `SaleRequest` di `src/types/domain.ts`:
@@ -69,6 +73,7 @@ Setiap respons transaksi juga menyertakan `pieceCount`, `costPerItem`, `costOfGo
   "items": [{ "lineId": "line_x", "productId": "prd_001", "name": "Dankau Berry", "price": 14000, "quantity": 2 }],
   "orderType": "takeaway",
   "paymentMethod": "qris",
+  "pricingMode": "reseller",
   "customerName": "Kak Rani",
   "discount": 0,
   "amountPaid": 31080,
@@ -76,7 +81,11 @@ Setiap respons transaksi juga menyertakan `pieceCount`, `costPerItem`, `costOfGo
 }
 ```
 
-Server tidak boleh memercayai harga/tax/discount dari client. Hitung ulang dari price book, promotion rule, dan konfigurasi pajak; kembalikan `409 PRICE_CHANGED` bila kasir perlu mengonfirmasi total baru. Kurangi stok dan buat payment/sale lines dalam satu database transaction.
+Server tidak boleh memercayai harga/tax/discount dari client. Hitung ulang dari price book sesuai
+`pricingMode` (`customer` atau `reseller`), promotion rule, dan konfigurasi pajak; kembalikan
+`409 PRICE_CHANGED` bila kasir perlu mengonfirmasi total baru. Untuk mode reseller, tolak produk
+tanpa `resellerPrice` dengan `409 RESELLER_PRICE_UNAVAILABLE`. Kurangi stok dan buat payment/sale
+lines dalam satu database transaction.
 
 ## Bentuk error
 

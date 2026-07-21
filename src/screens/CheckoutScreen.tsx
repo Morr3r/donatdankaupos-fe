@@ -1,9 +1,10 @@
 import * as Haptics from 'expo-haptics';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Banknote, CreditCard, Landmark, QrCode, ShoppingBag, Tag, UserRound } from 'lucide-react-native';
+import { Banknote, CreditCard, Handshake, Landmark, QrCode, ShoppingBag, Tag, UserRound } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { promotionService, saleService } from '../api/services';
+import { BcaTransferDetails } from '../components/bca-transfer-details';
 import { CartRow } from '../components/pos';
 import { Button, Chip, Divider, Field, GlassCard, Header, ScalePressable, Screen, SectionHeader } from '../components/ui';
 import type { RootStackParamList } from '../navigation/types';
@@ -27,14 +28,15 @@ const paymentMethods: { id: PaymentMethod; label: string; helper: string; icon: 
   { id: 'cash', label: 'Tunai', helper: 'Hitung kembalian', icon: Banknote },
   { id: 'qris', label: 'QRIS', helper: 'Scan kode bayar', icon: QrCode },
   { id: 'card', label: 'Kartu', helper: 'EDC debit/kredit', icon: CreditCard },
-  { id: 'transfer', label: 'Transfer', helper: 'Konfirmasi manual', icon: Landmark },
+  { id: 'transfer', label: 'Transfer', helper: 'BCA · konfirmasi manual', icon: Landmark },
 ];
 
 export function CheckoutScreen({ navigation }: Props) {
   const cart = usePOSStore((state) => state.cart);
   const changeQuantity = usePOSStore((state) => state.changeQuantity);
   const removeLine = usePOSStore((state) => state.removeLine);
-  const clearCart = usePOSStore((state) => state.clearCart);
+  const pricingMode = usePOSStore((state) => state.pricingMode);
+  const resetSale = usePOSStore((state) => state.resetSale);
   const loadCatalog = useCatalogStore((state) => state.load);
   const shift = useOperationsStore((state) => state.shift);
   const addTransaction = useOperationsStore((state) => state.addTransaction);
@@ -101,6 +103,7 @@ export function CheckoutScreen({ navigation }: Props) {
       items: cart,
       orderType,
       paymentMethod,
+      pricingMode,
       customerName: customerName.trim() || undefined,
       voucherCode: voucher.trim() || undefined,
       discount,
@@ -111,7 +114,7 @@ export function CheckoutScreen({ navigation }: Props) {
     try {
       const transaction = await saleService.create(payload);
       addTransaction(transaction);
-      clearCart();
+      resetSale();
       void loadCatalog().catch(() => undefined);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       navigation.replace('PaymentSuccess', { transactionId: transaction.id });
@@ -134,6 +137,16 @@ export function CheckoutScreen({ navigation }: Props) {
   return (
     <Screen bottomInset={spacing.xl}>
       <Header onBack={navigation.goBack} subtitle={`${cart.reduce((sum, item) => sum + item.quantity, 0)} item siap diproses`} title="Checkout" />
+
+      <GlassCard style={styles.pricingCard} contentStyle={styles.pricingCardInner}>
+        <View style={styles.pricingIcon}>
+          {pricingMode === 'reseller' ? <Handshake color={palette.white} size={20} /> : <UserRound color={palette.white} size={20} />}
+        </View>
+        <View style={styles.pricingCopy}>
+          <Text style={styles.pricingTitle}>Harga {pricingMode === 'reseller' ? 'reseller' : 'pelanggan'}</Text>
+          <Text style={styles.pricingText}>Mode harga ini terkunci untuk seluruh pesanan.</Text>
+        </View>
+      </GlassCard>
 
       <SectionHeader title="Jenis pesanan" />
       <View style={styles.chips}>{orderTypes.map((item) => <Chip key={item.id} label={item.label} onPress={() => setOrderType(item.id)} selected={orderType === item.id} />)}</View>
@@ -172,6 +185,13 @@ export function CheckoutScreen({ navigation }: Props) {
           <View style={styles.suggestions}>{suggestions.map((value) => <Button key={value} compact label={value === totals.total ? 'Uang pas' : formatCurrency(value)} onPress={() => setAmountPaid(String(value))} style={styles.suggestion} variant={numericPaid === value ? 'primary' : 'secondary'} />)}</View>
           <View style={styles.changeRow}><Text style={styles.changeLabel}>Kembalian</Text><Text style={[styles.changeValue, numericPaid < totals.total && styles.changeNegative]}>{formatCurrency(Math.max(0, numericPaid - totals.total))}</Text></View>
         </GlassCard>
+      ) : null}
+
+      {paymentMethod === 'transfer' ? (
+        <BcaTransferDetails
+          helper="Transfer sebesar total pembayaran, lalu konfirmasi sebelum menyelesaikan transaksi."
+          style={styles.transferCard}
+        />
       ) : null}
 
       <SectionHeader title="Ringkasan pembayaran" />
@@ -218,6 +238,12 @@ function SummaryRow({ label, value, tone }: { label: string; value: string; tone
 }
 
 const styles = StyleSheet.create({
+  pricingCard: { marginBottom: spacing.xs },
+  pricingCardInner: { minHeight: 66, padding: spacing.sm, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: 'rgba(255,255,255,0.76)' },
+  pricingIcon: { width: 42, height: 42, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.cocoaDark },
+  pricingCopy: { flex: 1 },
+  pricingTitle: { color: palette.ink, fontFamily: type.bold, fontSize: 13 },
+  pricingText: { color: palette.muted, fontFamily: type.regular, fontSize: 10, lineHeight: 15, marginTop: 2 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
   orderCard: { paddingHorizontal: spacing.md },
   voucherRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.xs },
@@ -228,6 +254,7 @@ const styles = StyleSheet.create({
   paymentButtonText: { color: palette.cocoa, fontFamily: type.bold, fontSize: 15 },
   paymentButtonTextSelected: { color: palette.white },
   cashCard: { marginTop: spacing.md },
+  transferCard: { marginTop: spacing.md },
   cashCardInner: { padding: spacing.md, gap: spacing.md },
   suggestions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
   suggestion: { flexGrow: 1 },

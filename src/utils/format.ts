@@ -1,4 +1,4 @@
-import type { CartItem, CartTotals, OrderType, PaymentMethod } from '../types/domain';
+import type { CartItem, CartTotals, OrderType, PaymentMethod, PricingMode, Product } from '../types/domain';
 
 const currency = new Intl.NumberFormat('id-ID', {
   style: 'currency',
@@ -28,6 +28,8 @@ export const formatCurrency = (value: number) => currency.format(value);
 export const formatCompact = (value: number) => compactNumber.format(value);
 export const formatPercent = (value: number) => `${percentage.format(value)}%`;
 export const formatDateTime = (value: string | Date) => dateTime.format(new Date(value));
+export const getProductPrice = (product: Product, pricingMode: PricingMode) =>
+  pricingMode === 'reseller' ? product.resellerPrice ?? product.price : product.price;
 
 export const resolvePiecesPerUnit = (explicitValue: number | null | undefined, ...labels: (string | null | undefined)[]) => {
   if (explicitValue && explicitValue >= 1) return Math.floor(explicitValue);
@@ -76,6 +78,11 @@ export const orderTypeLabels: Record<OrderType, string> = {
   takeaway: 'Bawa pulang',
   dine_in: 'Makan di tempat',
   delivery: 'Delivery',
+};
+
+export const pricingModeLabels: Record<PricingMode, string> = {
+  customer: 'Pelanggan',
+  reseller: 'Reseller',
 };
 
 export const createLocalId = (prefix: string) =>

@@ -22,6 +22,8 @@ export function ProductEditorScreen({ navigation, route }: Props) {
   const [description, setDescription] = useState(existing?.description ?? '');
   const [category, setCategory] = useState(existing?.category ?? 'Donat');
   const [price, setPrice] = useState(existing ? String(existing.price) : '');
+  const [resellerPrice, setResellerPrice] = useState(existing?.resellerPrice != null ? String(existing.resellerPrice) : '');
+  const [isResellerOnly, setIsResellerOnly] = useState(existing?.isResellerOnly ?? false);
   const [imageUrl, setImageUrl] = useState(existing?.imageUrl ?? '');
   const [inventoryItemId, setInventoryItemId] = useState<string | null>(existing?.inventoryItemId ?? null);
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
@@ -35,6 +37,7 @@ export function ProductEditorScreen({ navigation, route }: Props) {
   const [error, setError] = useState<string | null>(null);
   const title = existing ? 'Edit produk' : 'Produk baru';
   const numericPrice = Number(price.replace(/\D/g, '') || 0);
+  const numericResellerPrice = resellerPrice ? Number(resellerPrice.replace(/\D/g, '')) : null;
   const numericMinimumOrderQuantity = Number(minimumOrderQuantity);
   const numericPiecesPerUnit = Number(piecesPerUnit);
   const isValid = useMemo(
@@ -101,6 +104,8 @@ export function ProductEditorScreen({ navigation, route }: Props) {
       description: description.trim(),
       category: category.trim(),
       price: numericPrice,
+      resellerPrice: numericResellerPrice,
+      isResellerOnly,
       stock: null,
       trackInventory: false,
       inventoryItemId,
@@ -141,7 +146,23 @@ export function ProductEditorScreen({ navigation, route }: Props) {
         <Field autoCapitalize="words" label="Nama produk" onChangeText={setName} placeholder="Contoh: Donat Cokelat" value={name} />
         <Field autoCapitalize="characters" label="SKU" onChangeText={setSku} placeholder="DDK-001" value={sku} />
         <Field label="Kategori" onChangeText={setCategory} placeholder="Donat" value={category} />
-        <Field keyboardType="number-pad" label="Harga dasar" onChangeText={(value) => setPrice(value.replace(/\D/g, ''))} placeholder="0" value={price} />
+        <Field keyboardType="number-pad" label="Harga pelanggan" onChangeText={(value) => setPrice(value.replace(/\D/g, ''))} placeholder="0" value={price} />
+        <Field keyboardType="number-pad" label="Harga reseller (opsional)" onChangeText={(value) => {
+          const nextValue = value.replace(/\D/g, '');
+          setResellerPrice(nextValue);
+          if (!nextValue) setIsResellerOnly(false);
+        }} placeholder="Kosongkan jika tidak tersedia" value={resellerPrice} />
+        <Text style={styles.priceHelper}>Produk hanya muncul di mode Reseller jika harga khusus ini diisi.</Text>
+        {resellerPrice ? (
+          <View>
+            <Text style={styles.switchTitle}>Ketersediaan produk</Text>
+            <Text style={styles.switchSubtitle}>Pilih apakah produk tetap tersedia untuk pelanggan biasa.</Text>
+            <View style={styles.stockChoices}>
+              <Chip label="Pelanggan & reseller" onPress={() => setIsResellerOnly(false)} selected={!isResellerOnly} />
+              <Chip label="Khusus reseller" onPress={() => setIsResellerOnly(true)} selected={isResellerOnly} />
+            </View>
+          </View>
+        ) : null}
         <Field label="Kemasan atau ukuran" onChangeText={setSourcePackaging} placeholder="Contoh: Isi 12 pcs, 35 gram, atau per pcs" value={sourcePackaging} />
         <Field keyboardType="number-pad" label="Isi per unit (pcs)" onChangeText={(value) => setPiecesPerUnit(value.replace(/\D/g, ''))} placeholder="1" value={piecesPerUnit} />
         <Field keyboardType="number-pad" label="Minimal unit pembelian" onChangeText={(value) => setMinimumOrderQuantity(value.replace(/\D/g, ''))} placeholder="1" value={minimumOrderQuantity} />
@@ -176,15 +197,22 @@ function OptionEditor({ label, options, onChange }: { label: string; options: Pr
   return (
     <>
       <SectionHeader actionLabel={`Tambah ${label.toLowerCase()}`} onAction={add} title={label} />
-      <GlassCard contentStyle={styles.card}>
-        {options.length ? options.map((item, index) => (
-          <View key={item.id} style={styles.optionCard}>
-            <View style={styles.optionHeading}><Text style={styles.optionTitle}>{label} {index + 1}</Text><IconButton icon={Trash2} label={`Hapus ${label} ${index + 1}`} onPress={() => onChange(options.filter((option) => option.id !== item.id))} tone="danger" /></View>
-            <Field label="Nama" onChangeText={(value) => update(item.id, { name: value })} placeholder={label === 'Varian' ? 'Contoh: Isi 6' : 'Contoh: Keju'} value={item.name} />
-            <Field keyboardType="number-pad" label="Tambahan harga" onChangeText={(value) => update(item.id, { priceDelta: Number(value.replace(/\D/g, '') || 0) })} placeholder="0" value={String(item.priceDelta)} />
-          </View>
-        )) : <View style={styles.emptyOptions}><Text style={styles.emptyOptionsText}>Belum ada {label.toLowerCase()}. Produk tetap bisa dijual dengan harga dasar.</Text><Button compact icon={Plus} label={`Tambah ${label.toLowerCase()}`} onPress={add} variant="secondary" /></View>}
-      </GlassCard>
+      {options.length ? (
+        <GlassCard contentStyle={styles.card}>
+          {options.map((item, index) => (
+            <View key={item.id} style={styles.optionCard}>
+              <View style={styles.optionHeading}><Text style={styles.optionTitle}>{label} {index + 1}</Text><IconButton icon={Trash2} label={`Hapus ${label} ${index + 1}`} onPress={() => onChange(options.filter((option) => option.id !== item.id))} tone="danger" /></View>
+              <Field label="Nama" onChangeText={(value) => update(item.id, { name: value })} placeholder={label === 'Varian' ? 'Contoh: Isi 6' : 'Contoh: Keju'} value={item.name} />
+              <Field keyboardType="number-pad" label="Tambahan harga" onChangeText={(value) => update(item.id, { priceDelta: Number(value.replace(/\D/g, '') || 0) })} placeholder="0" value={String(item.priceDelta)} />
+            </View>
+          ))}
+        </GlassCard>
+      ) : (
+        <View style={styles.emptyOptions}>
+          <Text style={styles.emptyOptionsText}>Belum ada {label.toLowerCase()}. Produk tetap bisa dijual dengan harga dasar.</Text>
+          <Button compact icon={Plus} label={`Tambah ${label.toLowerCase()}`} onPress={add} variant="secondary" />
+        </View>
+      )}
     </>
   );
 }
@@ -196,6 +224,7 @@ const styles = StyleSheet.create({
   previewEmpty: { alignItems: 'center', justifyContent: 'center', gap: spacing.xs },
   previewText: { color: palette.muted, fontFamily: type.medium, fontSize: 11 },
   multiline: { minHeight: 96, textAlignVertical: 'top' },
+  priceHelper: { color: palette.muted, fontFamily: type.regular, fontSize: 10, lineHeight: 15, marginTop: -spacing.xs },
   switchTitle: { color: palette.ink, fontFamily: type.semibold, fontSize: 13 },
   switchSubtitle: { color: palette.muted, fontFamily: type.regular, fontSize: 10, lineHeight: 15, marginTop: 3 },
   stockChoices: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },

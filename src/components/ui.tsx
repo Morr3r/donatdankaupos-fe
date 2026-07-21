@@ -1,4 +1,3 @@
-import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { LucideProps } from 'lucide-react-native';
 import { ChevronLeft, Eye, EyeOff, Search, X } from 'lucide-react-native';
@@ -39,10 +38,10 @@ export function AppBackground({ children }: PropsWithChildren) {
   );
 }
 
-export function BrandLogo({ width = 270 }: { width?: number }) {
+export function BrandLogo({ width = 270, style }: { width?: number; style?: StyleProp<ViewStyle> }) {
   const sourceSize = width;
   return (
-    <View accessibilityLabel="Logo Donat Dankau" accessibilityRole="image" style={[styles.logoViewport, { width, height: width * 0.25 }]}>
+    <View accessibilityLabel="Logo Donat Dankau" accessibilityRole="image" style={[styles.logoViewport, { width, height: width * 0.25 }, style]}>
       <Image
         resizeMode="contain"
         source={require('../../assets/donat-dankau-logo.png')}
@@ -133,27 +132,14 @@ export function FormModal({ visible, title, subtitle, footer, onClose, children 
 interface GlassCardProps extends PropsWithChildren {
   style?: StyleProp<ViewStyle>;
   contentStyle?: StyleProp<ViewStyle>;
-  intensity?: number;
   dark?: boolean;
 }
 
-export function GlassCard({ children, style, contentStyle, intensity = 50, dark = false }: GlassCardProps) {
-  const content = (
-    <>
+export function GlassCard({ children, style, contentStyle, dark = false }: GlassCardProps) {
+  return (
+    <View style={[styles.glassShell, dark && styles.glassShellDark, contentStyle, style]}>
       <View style={[styles.glassHighlight, styles.pointerNone]} />
       {children}
-    </>
-  );
-
-  return (
-    <View style={[styles.glassShell, dark && styles.glassShellDark, style]}>
-      {Platform.OS === 'ios' ? (
-        <BlurView intensity={intensity} tint={dark ? 'dark' : 'light'} style={[styles.glassBlur, contentStyle]}>
-          {content}
-        </BlurView>
-      ) : (
-        <View style={[styles.glassBlur, contentStyle]}>{content}</View>
-      )}
     </View>
   );
 }
@@ -261,18 +247,19 @@ export function IconButton({ icon: Icon, label, onPress, tone = 'light' }: IconB
 
 interface HeaderProps {
   eyebrow?: string;
+  brand?: ReactNode;
   title: string;
   subtitle?: string;
   onBack?: () => void;
   right?: ReactNode;
 }
 
-export function Header({ eyebrow, title, subtitle, onBack, right }: HeaderProps) {
+export function Header({ eyebrow, brand, title, subtitle, onBack, right }: HeaderProps) {
   return (
     <View style={styles.header}>
       {onBack ? <IconButton icon={ChevronLeft} label="Kembali" onPress={onBack} /> : null}
       <View style={styles.headerCopy}>
-        {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
+        {brand ? <View style={styles.headerBrand}>{brand}</View> : eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
         <Text accessibilityRole="header" maxFontSizeMultiplier={1.4} style={styles.headerTitle}>{title}</Text>
         {subtitle ? <Text style={styles.headerSubtitle}>{subtitle}</Text> : null}
       </View>
@@ -358,9 +345,9 @@ export function Chip({ label, selected, onPress, icon: Icon }: ChipProps) {
   return <ScalePressable accessibilityLabel={label} accessibilityState={{ selected }} onPress={onPress}>{content}</ScalePressable>;
 }
 
-export function StatusPill({ label, tone = 'success' }: { label: string; tone?: 'success' | 'danger' | 'warning' | 'info' }) {
+export function StatusPill({ label, tone = 'success', style }: { label: string; tone?: 'success' | 'danger' | 'warning' | 'info'; style?: StyleProp<ViewStyle> }) {
   return (
-    <View style={[styles.statusPill, styles[`status_${tone}`]]}>
+    <View style={[styles.statusPill, styles[`status_${tone}`], style]}>
       <View style={[styles.statusDot, styles[`statusDot_${tone}`]]} />
       <Text style={[styles.statusText, styles[`statusText_${tone}`]]}>{label}</Text>
     </View>
@@ -394,9 +381,8 @@ const styles = StyleSheet.create({
   orbPink: { width: 230, height: 230, backgroundColor: 'rgba(232, 140, 164, 0.22)', top: -70, right: -95 },
   orbGold: { width: 190, height: 190, backgroundColor: 'rgba(239, 184, 89, 0.18)', bottom: 70, left: -100 },
   orbWhite: { width: 150, height: 150, backgroundColor: 'rgba(255,255,255,0.65)', top: '36%', right: -95 },
-  glassShell: { borderRadius: radius.lg, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.82)', backgroundColor: palette.glass, ...shadow.glass },
+  glassShell: { borderRadius: radius.lg, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.82)', backgroundColor: palette.glass, },
   glassShellDark: { borderColor: 'rgba(255,255,255,0.16)', backgroundColor: palette.glassDark },
-  glassBlur: { overflow: 'hidden', borderRadius: radius.lg },
   glassHighlight: { position: 'absolute', top: 0, left: 20, right: 20, height: 1, backgroundColor: 'rgba(255,255,255,0.95)' },
   button: { minHeight: 52, borderRadius: radius.md, overflow: 'hidden' },
   buttonPrimary: { ...shadow.glass },
@@ -414,6 +400,7 @@ const styles = StyleSheet.create({
   iconButtonDanger: { backgroundColor: palette.dangerSoft, borderColor: 'rgba(185,62,72,0.16)' },
   header: { flexDirection: 'row', alignItems: 'center', minHeight: 72, gap: spacing.sm, marginBottom: spacing.md },
   headerCopy: { flex: 1 },
+  headerBrand: { alignItems: 'flex-start', marginBottom: 2 },
   headerRight: { marginLeft: spacing.xs },
   eyebrow: { color: palette.honey, fontFamily: type.bold, fontSize: 11, letterSpacing: 1.3, textTransform: 'uppercase', marginBottom: 2 },
   headerTitle: { color: palette.ink, fontFamily: type.display, fontSize: 28, lineHeight: 34 },

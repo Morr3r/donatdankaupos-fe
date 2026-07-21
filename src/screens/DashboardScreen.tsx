@@ -3,7 +3,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { ArrowRight, Banknote, Clock3, PackageOpen, ReceiptText, ShoppingBag, TrendingUp, Users } from 'lucide-react-native';
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { BarChart, MetricCard } from '../components/data';
-import { Button, GlassCard, Header, ScalePressable, Screen, SectionHeader, StatusPill } from '../components/ui';
+import { BrandLogo, Button, GlassCard, Header, ScalePressable, Screen, SectionHeader, StatusPill } from '../components/ui';
 import { reportService, type SalesSummary } from '../api/services';
 import type { RootStackParamList } from '../navigation/types';
 import { useOperationsStore } from '../store/operationsStore';
@@ -50,12 +50,12 @@ export function DashboardScreen() {
   return (
     <Screen>
       <Header
-        eyebrow={user?.outletName}
+        brand={<BrandLogo style={styles.headerLogo} width={128} />}
         subtitle={`${getGreeting()}, ${user?.name?.split(' ')[0] ?? 'Kasir'}`}
         title="Ringkasan hari ini"
       />
 
-      <GlassCard dark style={styles.heroCard} contentStyle={styles.heroContent} intensity={38}>
+      <GlassCard dark style={styles.heroCard} contentStyle={styles.heroContent}>
         <LinearGradient colors={gradients.primary} style={StyleSheet.absoluteFill} />
         <View style={[styles.heroOrb, styles.pointerNone]} />
         <View style={styles.heroTop}>
@@ -123,6 +123,7 @@ function QuickAction({ icon, label, tone, onPress, fullWidth }: { icon: React.Re
 
 const styles = StyleSheet.create({
   pointerNone: { pointerEvents: 'none' },
+  headerLogo: { alignSelf: 'flex-start' },
   heroCard: { marginTop: spacing.xs },
   heroContent: { padding: spacing.lg, minHeight: 278 },
   heroOrb: { position: 'absolute', width: 170, height: 170, borderRadius: 85, backgroundColor: 'rgba(232,140,164,0.18)', right: -45, top: -65 },

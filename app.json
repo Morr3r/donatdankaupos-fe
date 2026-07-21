@@ -7,7 +7,7 @@
     "orientation": "portrait",
     "icon": "./assets/donat-dankau-logo.png",
     "userInterfaceStyle": "light",
-    "backgroundColor": "#FFF9F2",
+    "backgroundColor": "#140D0A",
     "plugins": [
       "./plugins/with-short-android-cmake-path",
       "@react-native-community/datetimepicker",
@@ -17,7 +17,8 @@
           "photosPermission": "Izinkan Donat Dankau POS memilih foto produk dari galeri."
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      "expo-video"
     ],
     "ios": {
       "supportsTablet": true,

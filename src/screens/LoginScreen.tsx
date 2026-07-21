@@ -1,9 +1,8 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { LockKeyhole, Mail, ShieldCheck, Sparkles } from 'lucide-react-native';
 import { useState } from 'react';
 import { KeyboardAvoidingView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { AppBackground, BrandLogo, Button, Field, GlassCard } from '../components/ui';
-import { gradients, palette, radius, spacing, type } from '../theme/tokens';
+import { palette, radius, spacing, type } from '../theme/tokens';
 import { useSessionStore } from '../store/sessionStore';
 
 export function LoginScreen() {
@@ -43,7 +42,7 @@ export function LoginScreen() {
             <Text style={styles.subtitle}>Kelola penjualan, stok, shift, dan laporan dalam satu pengalaman yang cepat.</Text>
           </View>
 
-          <GlassCard style={styles.loginCard} contentStyle={styles.loginCardInner} intensity={66}>
+          <GlassCard style={styles.loginCard} contentStyle={styles.loginCardInner}>
             <View style={styles.cardHeading}>
               <View style={styles.lockIcon}><LockKeyhole color={palette.cocoa} size={22} /></View>
               <View>
@@ -59,7 +58,7 @@ export function LoginScreen() {
               label="Email"
               leftIcon={Mail}
               onChangeText={setEmail}
-              placeholder="nama@donatdankau.id"
+              placeholder="Masukkan email anda"
               value={email}
             />
             <Field
@@ -67,7 +66,7 @@ export function LoginScreen() {
               label="Kata sandi"
               leftIcon={LockKeyhole}
               onChangeText={setPassword}
-              placeholder="Minimal 6 karakter"
+              placeholder="Masukkan kata sandi anda"
               secureTextEntry
               value={password}
             />
@@ -84,15 +83,6 @@ export function LoginScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
     </AppBackground>
-  );
-}
-
-export function SplashScreen() {
-  return (
-    <LinearGradient colors={gradients.background} style={styles.splash}>
-      <View style={styles.splashMark}><BrandLogo width={260} /></View>
-      <Text style={styles.splashText}>Menyiapkan outlet Anda…</Text>
-    </LinearGradient>
   );
 }
 
@@ -114,7 +104,4 @@ const styles = StyleSheet.create({
   securityNotice: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: spacing.xs },
   securityNoticeText: { color: palette.success, fontFamily: type.semibold, fontSize: 11 },
   version: { color: palette.muted, fontFamily: type.medium, fontSize: 10, textAlign: 'center', marginTop: spacing.lg },
-  splash: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.lg },
-  splashMark: { padding: spacing.lg, borderRadius: radius.xl, backgroundColor: 'rgba(255,255,255,0.72)' },
-  splashText: { color: palette.muted, fontFamily: type.medium, fontSize: 13 },
 });

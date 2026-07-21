@@ -12,6 +12,8 @@ import type { InventoryItem } from '../types/domain';
 
 type StockFilter = 'Semua' | 'Menipis' | 'Aman';
 
+const automaticAdjustmentReason = 'Penyesuaian stok manual';
+
 const inventoryColors: Record<string, { background: string; accent: string }> = {
   medium: { background: palette.roseSoft, accent: palette.rose },
   large: { background: palette.honeySoft, accent: palette.honey },
@@ -29,7 +31,6 @@ export function InventoryScreen({ navigation }: NativeStackScreenProps<RootStack
   const [filter, setFilter] = useState<StockFilter>('Semua');
   const [selected, setSelected] = useState<InventoryItem | null>(null);
   const [stockValue, setStockValue] = useState('');
-  const [reason, setReason] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -64,7 +65,6 @@ export function InventoryScreen({ navigation }: NativeStackScreenProps<RootStack
   const openAdjustment = (item: InventoryItem) => {
     setSelected(item);
     setStockValue(String(item.stock));
-    setReason('');
     setFormError(null);
   };
 
@@ -75,13 +75,9 @@ export function InventoryScreen({ navigation }: NativeStackScreenProps<RootStack
       setFormError('Stok harus berupa bilangan bulat nol atau lebih.');
       return;
     }
-    if (reason.trim().length < 3) {
-      setFormError('Alasan penyesuaian minimal 3 karakter.');
-      return;
-    }
     setSaving(true);
     try {
-      const saved = await inventoryService.adjust(selected.id, quantity, reason.trim(), 'absolute');
+      const saved = await inventoryService.adjust(selected.id, quantity, automaticAdjustmentReason, 'absolute');
       setItems((current) => current.map((item) => item.id === saved.id ? saved : item));
       setSelected(null);
     } catch (error) {
@@ -138,7 +134,6 @@ export function InventoryScreen({ navigation }: NativeStackScreenProps<RootStack
         visible={selected !== null}
       >
         <Field keyboardType="number-pad" label="Jumlah stok aktual (pcs)" onChangeText={(value) => setStockValue(value.replace(/\D/g, ''))} placeholder="0" value={stockValue} />
-        <Field label="Alasan penyesuaian" multiline numberOfLines={3} onChangeText={setReason} placeholder="Contoh: hasil stock opname" style={styles.reasonInput} value={reason} />
         {formError ? <Text style={styles.formError}>{formError}</Text> : null}
       </FormModal>
     </Screen>
@@ -171,5 +166,4 @@ const styles = StyleSheet.create({
   modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.xs },
   formError: { color: palette.danger, fontFamily: type.medium, fontSize: 11 },
   loadError: { color: palette.danger, fontFamily: type.medium, fontSize: 11, marginBottom: spacing.sm },
-  reasonInput: { minHeight: 84, textAlignVertical: 'top' },
 });

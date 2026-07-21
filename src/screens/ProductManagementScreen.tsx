@@ -124,6 +124,7 @@ function ProductImage({ item, style }: { item: Product; style: StyleProp<ImageSt
 function ProductBadges({ item }: { item: Product }) {
   return (
     <View style={styles.badges}>
+      {item.resellerPrice != null ? <StatusPill label={item.isResellerOnly ? 'Khusus reseller' : 'Harga reseller aktif'} tone="info" /> : null}
       {item.minimumOrderQuantity > 1 ? <StatusPill label={`Min. ${item.minimumOrderQuantity} unit`} tone="warning" /> : null}
       {item.variants?.length ? <StatusPill label={`${item.variants.length} pilihan`} tone="info" /> : null}
       {item.toppings?.length ? <StatusPill label={`${item.toppings.length} topping`} tone="warning" /> : null}
@@ -141,7 +142,10 @@ function ProductMobileCard({ item, onEdit, onDelete }: { item: Product; onEdit: 
           <Text numberOfLines={2} style={styles.name}>{item.name}</Text>
           <Text style={styles.meta}>{item.sku} · {item.category}</Text>
           <Text style={styles.packaging}>{item.sourcePackaging || 'Kemasan belum diisi'}</Text>
-          <Text style={styles.price}>{formatCurrency(item.price)}</Text>
+          <View style={styles.priceGroup}>
+            <Text style={styles.price}>Pelanggan {formatCurrency(item.price)}</Text>
+            {item.resellerPrice != null ? <Text style={styles.resellerPrice}>Reseller {formatCurrency(item.resellerPrice)}</Text> : null}
+          </View>
         </View>
       </View>
       <ProductBadges item={item} />
@@ -159,7 +163,7 @@ function ProductTableHeader() {
       <Text style={[styles.tableHeaderText, styles.productColumn]}>Produk</Text>
       <Text style={[styles.tableHeaderText, styles.categoryColumn]}>Kategori</Text>
       <Text style={[styles.tableHeaderText, styles.packagingColumn]}>Kemasan</Text>
-      <Text style={[styles.tableHeaderText, styles.priceColumn]}>Harga</Text>
+      <Text style={[styles.tableHeaderText, styles.priceColumn]}>Harga pelanggan / reseller</Text>
       <Text style={[styles.tableHeaderText, styles.statusColumn]}>Status</Text>
       <Text style={[styles.tableHeaderText, styles.actionColumn]}>Aksi</Text>
     </View>
@@ -175,7 +179,10 @@ function ProductTableRow({ item, onEdit, onDelete }: { item: Product; onEdit: ()
       </View>
       <Text numberOfLines={2} style={[styles.tableCellText, styles.categoryColumn]}>{item.category}</Text>
       <Text numberOfLines={2} style={[styles.tableCellText, styles.packagingColumn]}>{item.sourcePackaging || '—'}</Text>
-      <Text style={[styles.tablePrice, styles.priceColumn]}>{formatCurrency(item.price)}</Text>
+      <View style={styles.priceColumn}>
+        <Text style={styles.tablePrice}>{formatCurrency(item.price)}</Text>
+        <Text style={styles.tableResellerPrice}>{item.resellerPrice != null ? formatCurrency(item.resellerPrice) : 'Tidak tersedia'}</Text>
+      </View>
       <View style={styles.statusColumn}><StatusPill label={item.minimumOrderQuantity > 1 ? `Min. ${item.minimumOrderQuantity}` : 'Aktif'} tone={item.minimumOrderQuantity > 1 ? 'warning' : 'success'} /></View>
       <View style={[styles.actionColumn, styles.tableActions]}><IconButton icon={Edit3} label={`Edit ${item.name}`} onPress={onEdit} /><IconButton icon={Trash2} label={`Hapus ${item.name}`} onPress={onDelete} tone="danger" /></View>
     </View>
@@ -216,6 +223,8 @@ const styles = StyleSheet.create({
   meta: { color: palette.muted, fontFamily: type.regular, fontSize: 10, marginTop: 3 },
   packaging: { color: palette.inkSoft, fontFamily: type.medium, fontSize: 10, marginTop: 4 },
   price: { color: palette.cocoa, fontFamily: type.bold, fontSize: 13, marginTop: 6 },
+  priceGroup: { gap: 2 },
+  resellerPrice: { color: palette.success, fontFamily: type.semibold, fontSize: 11 },
   badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 6 },
   mobileActions: { flexDirection: 'row', gap: spacing.xs, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: palette.line },
   mobileAction: { flex: 1 },
@@ -229,13 +238,14 @@ const styles = StyleSheet.create({
   productColumn: { flex: 2.2, minWidth: 220 },
   categoryColumn: { flex: 1.15, minWidth: 120 },
   packagingColumn: { flex: 0.8, minWidth: 90 },
-  priceColumn: { width: 112 },
+  priceColumn: { width: 150 },
   statusColumn: { width: 100 },
   actionColumn: { width: 108 },
   tableProduct: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   tableProductCopy: { flex: 1, minWidth: 0 },
   tableImage: { width: 54, height: 54, borderRadius: radius.sm, resizeMode: 'cover' },
   tablePrice: { color: palette.cocoa, fontFamily: type.bold, fontSize: 12, fontVariant: ['tabular-nums'] },
+  tableResellerPrice: { color: palette.success, fontFamily: type.medium, fontSize: 10, marginTop: 3, fontVariant: ['tabular-nums'] },
   tableActions: { flexDirection: 'row', gap: spacing.xs },
   empty: { minHeight: 300, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
   emptyTitle: { color: palette.ink, fontFamily: type.bold, fontSize: 15, marginTop: spacing.md },
