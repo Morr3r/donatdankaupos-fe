@@ -18,10 +18,12 @@ import { useCatalogStore } from './src/store/catalogStore';
 import { useOperationsStore } from './src/store/operationsStore';
 import { usePOSStore } from './src/store/posStore';
 import { useSessionStore } from './src/store/sessionStore';
+import { toJakartaDateKey } from './src/utils/date';
 
 export default function App() {
   const [fontsLoaded] = useFonts({ Manrope_400Regular, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, PlayfairDisplay_600SemiBold, PlayfairDisplay_700Bold });
   const [introComplete, setIntroComplete] = useState(false);
+  const [jakartaDayKey, setJakartaDayKey] = useState(() => toJakartaDateKey());
   const status = useSessionStore((state) => state.status);
   const hydrate = useSessionStore((state) => state.hydrate);
   const shift = useOperationsStore((state) => state.shift);
@@ -50,7 +52,10 @@ export default function App() {
 
   useEffect(() => {
     if (status !== 'authenticated') return undefined;
-    const checkDailyShift = () => refreshShift().catch(() => undefined);
+    const checkDailyShift = () => {
+      setJakartaDayKey(toJakartaDateKey());
+      refreshShift().catch(() => undefined);
+    };
     const timer = setInterval(checkDailyShift, 60_000);
     const subscription = AppState.addEventListener('change', (nextState) => {
       if (nextState === 'active') checkDailyShift();
@@ -61,17 +66,19 @@ export default function App() {
     };
   }, [refreshShift, status]);
 
+  const dailyShiftId = shift?.status === 'open' && toJakartaDateKey(shift.openedAt) === jakartaDayKey
+    ? shift.id
+    : null;
+
   useEffect(() => {
-    if (!shift?.id) {
-      previousShiftId.current = null;
-      return;
-    }
-    if (previousShiftId.current && previousShiftId.current !== shift.id) {
+    if (previousShiftId.current && previousShiftId.current !== dailyShiftId) {
       clearCart();
+    }
+    if (dailyShiftId && previousShiftId.current && previousShiftId.current !== dailyShiftId) {
       refreshTransactions().catch(() => undefined);
     }
-    previousShiftId.current = shift.id;
-  }, [clearCart, refreshTransactions, shift?.id]);
+    previousShiftId.current = dailyShiftId;
+  }, [clearCart, dailyShiftId, refreshTransactions]);
 
   const ready = fontsLoaded && status !== 'bootstrapping' && (status !== 'authenticated' || operationsHydrated);
   const finishIntro = useCallback(() => setIntroComplete(true), []);
@@ -79,7 +86,7 @@ export default function App() {
   const appContent = ready
     ? status === 'unauthenticated'
       ? <LoginScreen />
-      : !shift || shift.status !== 'open'
+      : !dailyShiftId
         ? <OpenShiftScreen />
         : <AppNavigator />
     : <View style={styles.loadingCanvas} />;

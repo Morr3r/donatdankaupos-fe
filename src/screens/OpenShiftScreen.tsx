@@ -1,5 +1,5 @@
 import * as Haptics from 'expo-haptics';
-import { Banknote, CircleDollarSign, Clock3, LogOut, Store } from 'lucide-react-native';
+import { Banknote, CalendarDays, CircleDollarSign, Clock3, LogOut, Store } from 'lucide-react-native';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { BrandLogo, Button, Field, GlassCard, Screen, StatusPill } from '../components/ui';
@@ -7,6 +7,7 @@ import { TERMINAL_ID } from '../api/client';
 import { palette, radius, spacing, type } from '../theme/tokens';
 import { useOperationsStore } from '../store/operationsStore';
 import { useSessionStore } from '../store/sessionStore';
+import { formatJakartaBusinessDate } from '../utils/date';
 import { formatCurrency } from '../utils/format';
 
 const cashSuggestions = [100000, 200000, 300000, 500000];
@@ -18,8 +19,13 @@ export function OpenShiftScreen() {
   const user = useSessionStore((state) => state.user);
   const logout = useSessionStore((state) => state.logout);
   const openShift = useOperationsStore((state) => state.openShift);
+  const hasOpeningCash = openingCash.trim().length > 0;
 
   const handleOpen = async () => {
+    if (!hasOpeningCash) {
+      setError('Uang kas awal wajib diisi. Jika laci kosong, masukkan 0.');
+      return;
+    }
     const value = Number(openingCash.replace(/\D/g, ''));
     if (!Number.isFinite(value) || value < 0) {
       setError('Masukkan modal awal yang valid.');
@@ -48,9 +54,9 @@ export function OpenShiftScreen() {
       </View>
 
       <View style={styles.hero}>
-        <StatusPill label="Persiapan outlet" tone="warning" />
+        <StatusPill label="Wajib setiap hari" tone="warning" />
         <Text accessibilityRole="header" style={styles.title}>Buka shift hari ini</Text>
-        <Text style={styles.subtitle}>Catat modal awal laci agar rekonsiliasi kas di akhir shift tetap akurat.</Text>
+        <Text style={styles.subtitle}>Sebelum mulai berjualan, isi uang kas awal untuk hari operasional baru.</Text>
       </View>
 
       <GlassCard contentStyle={styles.shiftCard}>
@@ -63,14 +69,14 @@ export function OpenShiftScreen() {
         </View>
 
         <View style={styles.summaryGrid}>
-          <View style={styles.summaryItem}><Clock3 color={palette.honey} size={19} /><Text style={styles.summaryLabel}>Mulai</Text><Text style={styles.summaryValue}>Sekarang</Text></View>
+          <View style={styles.summaryItem}><CalendarDays color={palette.honey} size={19} /><Text style={styles.summaryLabel}>Hari operasional</Text><Text style={styles.summaryValue}>{formatJakartaBusinessDate()}</Text></View>
           <View style={styles.summaryItem}><CircleDollarSign color={palette.rose} size={19} /><Text style={styles.summaryLabel}>Terminal</Text><Text style={styles.summaryValue}>{TERMINAL_ID || 'Belum siap'}</Text></View>
         </View>
 
         <Field
           error={error}
           keyboardType="number-pad"
-          label="Modal awal laci"
+          label="Uang kas awal hari ini"
           leftIcon={Banknote}
           onChangeText={(value) => { setOpeningCash(value.replace(/\D/g, '')); setError(null); }}
           placeholder="0"
@@ -84,8 +90,8 @@ export function OpenShiftScreen() {
           ))}
         </View>
 
-        <Button icon={Clock3} label="Buka shift & mulai jualan" loading={submitting} onPress={handleOpen} />
-        <Text style={styles.helper}>Modal awal membantu pencocokan uang laci saat penjualan selesai.</Text>
+        <Button disabled={!hasOpeningCash} icon={Clock3} label="Buka shift & mulai jualan" loading={submitting} onPress={handleOpen} />
+        <Text style={styles.helper}>Wajib diisi setiap hari. Jika tidak ada modal awal, masukkan angka 0.</Text>
       </GlassCard>
     </Screen>
   );
