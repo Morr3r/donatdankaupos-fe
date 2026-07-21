@@ -8,7 +8,7 @@ import { palette, radius, spacing, type } from '../theme/tokens';
 import { useOperationsStore } from '../store/operationsStore';
 import { useSessionStore } from '../store/sessionStore';
 import { formatJakartaBusinessDate } from '../utils/date';
-import { formatCurrency } from '../utils/format';
+import { formatCurrency, formatNumericInput, parseNumericInput } from '../utils/format';
 
 const cashSuggestions = [100000, 200000, 300000, 500000];
 
@@ -25,8 +25,8 @@ export function OpenShiftScreen() {
   const hasOpeningBalances = openingPhysicalCash.trim().length > 0 && openingBankBalance.trim().length > 0;
 
   const handleOpen = async () => {
-    const physicalValue = Number(openingPhysicalCash.replace(/\D/g, ''));
-    const bankValue = Number(openingBankBalance.replace(/\D/g, ''));
+    const physicalValue = parseNumericInput(openingPhysicalCash);
+    const bankValue = parseNumericInput(openingBankBalance);
     const nextPhysicalError = openingPhysicalCash.trim().length === 0
       ? 'Uang fisik wajib diisi. Jika laci kosong, masukkan 0.'
       : !Number.isFinite(physicalValue) || physicalValue < 0
@@ -88,16 +88,16 @@ export function OpenShiftScreen() {
           keyboardType="number-pad"
           label="Uang fisik"
           leftIcon={Banknote}
-          onChangeText={(value) => { setOpeningPhysicalCash(value.replace(/\D/g, '')); setPhysicalError(null); setSubmitError(null); }}
+          onChangeText={(value) => { setOpeningPhysicalCash(formatNumericInput(value)); setPhysicalError(null); setSubmitError(null); }}
           placeholder="0"
           value={openingPhysicalCash}
         />
-        <Text style={styles.amountPreview}>{formatCurrency(Number(openingPhysicalCash || 0))}</Text>
+        <Text style={styles.amountPreview}>{formatCurrency(parseNumericInput(openingPhysicalCash))}</Text>
 
         <Text style={styles.suggestionLabel}>Nominal cepat uang fisik</Text>
         <View style={styles.suggestions}>
           {cashSuggestions.map((amount) => (
-            <Button key={amount} compact label={formatCurrency(amount).replace('Rp', 'Rp ')} onPress={() => { setOpeningPhysicalCash(String(amount)); setPhysicalError(null); setSubmitError(null); }} style={styles.suggestionButton} variant={Number(openingPhysicalCash) === amount ? 'primary' : 'secondary'} />
+            <Button key={amount} compact label={formatCurrency(amount).replace('Rp', 'Rp ')} onPress={() => { setOpeningPhysicalCash(formatNumericInput(amount)); setPhysicalError(null); setSubmitError(null); }} style={styles.suggestionButton} variant={parseNumericInput(openingPhysicalCash) === amount ? 'primary' : 'secondary'} />
           ))}
         </View>
 
@@ -106,11 +106,11 @@ export function OpenShiftScreen() {
           keyboardType="number-pad"
           label="Uang rekening"
           leftIcon={Landmark}
-          onChangeText={(value) => { setOpeningBankBalance(value.replace(/\D/g, '')); setBankError(null); setSubmitError(null); }}
+          onChangeText={(value) => { setOpeningBankBalance(formatNumericInput(value)); setBankError(null); setSubmitError(null); }}
           placeholder="0"
           value={openingBankBalance}
         />
-        <Text style={styles.amountPreview}>{formatCurrency(Number(openingBankBalance || 0))}</Text>
+        <Text style={styles.amountPreview}>{formatCurrency(parseNumericInput(openingBankBalance))}</Text>
 
         {submitError ? <Text style={styles.formError}>{submitError}</Text> : null}
         <Button disabled={!hasOpeningBalances} icon={Clock3} label="Buka shift & mulai jualan" loading={submitting} onPress={handleOpen} />

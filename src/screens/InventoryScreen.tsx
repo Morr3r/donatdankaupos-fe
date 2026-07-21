@@ -9,6 +9,7 @@ import type { RootStackParamList } from '../navigation/types';
 import { useSessionStore } from '../store/sessionStore';
 import { palette, radius, spacing, type } from '../theme/tokens';
 import type { InventoryItem } from '../types/domain';
+import { formatNumericInput, parseNumericInput } from '../utils/format';
 
 type StockFilter = 'Semua' | 'Menipis' | 'Aman';
 
@@ -64,13 +65,13 @@ export function InventoryScreen({ navigation }: NativeStackScreenProps<RootStack
 
   const openAdjustment = (item: InventoryItem) => {
     setSelected(item);
-    setStockValue(String(item.stock));
+    setStockValue(formatNumericInput(item.stock));
     setFormError(null);
   };
 
   const saveAdjustment = async () => {
     if (!selected) return;
-    const quantity = Number(stockValue);
+    const quantity = parseNumericInput(stockValue);
     if (!Number.isInteger(quantity) || quantity < 0) {
       setFormError('Stok harus berupa bilangan bulat nol atau lebih.');
       return;
@@ -133,7 +134,7 @@ export function InventoryScreen({ navigation }: NativeStackScreenProps<RootStack
         title={selected ? `Atur ${selected.name}` : 'Atur stok'}
         visible={selected !== null}
       >
-        <Field keyboardType="number-pad" label="Jumlah stok aktual (pcs)" onChangeText={(value) => setStockValue(value.replace(/\D/g, ''))} placeholder="0" value={stockValue} />
+        <Field keyboardType="number-pad" label="Jumlah stok aktual (pcs)" onChangeText={(value) => setStockValue(formatNumericInput(value))} placeholder="0" value={stockValue} />
         {formError ? <Text style={styles.formError}>{formError}</Text> : null}
       </FormModal>
     </Screen>

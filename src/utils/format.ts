@@ -28,6 +28,16 @@ export const formatCurrency = (value: number) => currency.format(value);
 export const formatCompact = (value: number) => compactNumber.format(value);
 export const formatPercent = (value: number) => `${percentage.format(value)}%`;
 export const formatDateTime = (value: string | Date) => dateTime.format(new Date(value));
+export const numericInputDigits = (value: string | number) => String(value).replace(/\D/g, '');
+
+export const formatNumericInput = (value: string | number) => {
+  const digits = numericInputDigits(value);
+  if (!digits) return '';
+  const normalized = digits.replace(/^0+(?=\d)/, '');
+  return normalized.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+};
+
+export const parseNumericInput = (value: string | number) => Number(numericInputDigits(value) || 0);
 export const getProductPrice = (product: Product, pricingMode: PricingMode) =>
   pricingMode === 'reseller' ? product.resellerPrice ?? product.price : product.price;
 

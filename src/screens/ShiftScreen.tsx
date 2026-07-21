@@ -7,7 +7,7 @@ import { Button, Divider, Field, GlassCard, Header, Screen, SectionHeader, Statu
 import type { RootStackParamList } from '../navigation/types';
 import { useOperationsStore } from '../store/operationsStore';
 import { palette, radius, spacing, type } from '../theme/tokens';
-import { formatClock, formatCurrency, formatDateTime } from '../utils/format';
+import { formatClock, formatCurrency, formatDateTime, formatNumericInput, parseNumericInput } from '../utils/format';
 import { TERMINAL_ID } from '../api/client';
 
 export function ShiftScreen({ navigation }: NativeStackScreenProps<RootStackParamList, 'Shift'>) {
@@ -20,7 +20,7 @@ export function ShiftScreen({ navigation }: NativeStackScreenProps<RootStackPara
   const nonCashSales = useMemo(() => shiftTransactions.filter((item) => item.status === 'paid' && item.paymentMethod !== 'cash').reduce((sum, item) => sum + item.total, 0), [shiftTransactions]);
   const expectedCash = (shift?.openingCash ?? 0) + cashSales;
   const expectedBankBalance = (shift?.openingBankBalance ?? 0) + nonCashSales;
-  const actual = Number(actualCash.replace(/\D/g, '') || 0);
+  const actual = parseNumericInput(actualCash);
   const difference = actual - expectedCash;
 
   const handleClose = () => {
@@ -67,7 +67,7 @@ export function ShiftScreen({ navigation }: NativeStackScreenProps<RootStackPara
         <ReconcileRow label="Penjualan tunai" value={formatCurrency(cashSales)} />
         <Divider />
         <ReconcileRow emphasis label="Uang fisik seharusnya" value={formatCurrency(expectedCash)} />
-        <Field editable={shift.status === 'open'} keyboardType="number-pad" label="Kas aktual di laci" leftIcon={Banknote} onChangeText={(value) => setActualCash(value.replace(/\D/g, ''))} placeholder="Hitung uang fisik" value={actualCash} />
+        <Field editable={shift.status === 'open'} keyboardType="number-pad" label="Kas aktual di laci" leftIcon={Banknote} onChangeText={(value) => setActualCash(formatNumericInput(value))} placeholder="Hitung uang fisik" value={actualCash} />
         {actualCash ? <View style={[styles.difference, difference !== 0 && styles.differenceWarning]}><Text style={[styles.differenceLabel, difference !== 0 && styles.differenceTextWarning]}>Selisih kas</Text><Text style={[styles.differenceValue, difference !== 0 && styles.differenceTextWarning]}>{difference > 0 ? '+' : ''}{formatCurrency(difference)}</Text></View> : null}
         <Divider />
         <ReconcileRow icon={<Landmark color={palette.rose} size={17} />} label="Uang rekening awal" value={formatCurrency(shift.openingBankBalance ?? 0)} />

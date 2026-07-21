@@ -14,7 +14,7 @@ import { usePOSStore } from '../store/posStore';
 import { useSessionStore } from '../store/sessionStore';
 import { palette, radius, spacing, type } from '../theme/tokens';
 import type { OrderType, PaymentMethod, SaleRequest } from '../types/domain';
-import { createLocalId, formatCurrency, getCartTotals } from '../utils/format';
+import { createLocalId, formatCurrency, formatNumericInput, getCartTotals, parseNumericInput } from '../utils/format';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Checkout'>;
 
@@ -56,7 +56,7 @@ export function CheckoutScreen({ navigation }: Props) {
     orderType,
     user?.dineInServiceRateBps ?? 0,
   ), [cart, discount, orderType, user?.dineInServiceRateBps]);
-  const numericPaid = Number(amountPaid.replace(/\D/g, '') || 0);
+  const numericPaid = parseNumericInput(amountPaid);
   const suggestions = useMemo(() => {
     const rounded50 = Math.ceil(totals.total / 50_000) * 50_000;
     const rounded100 = Math.ceil(totals.total / 100_000) * 100_000;
@@ -181,8 +181,8 @@ export function CheckoutScreen({ navigation }: Props) {
 
       {paymentMethod === 'cash' ? (
         <GlassCard style={styles.cashCard} contentStyle={styles.cashCardInner}>
-          <Field keyboardType="number-pad" label="Uang diterima" leftIcon={Banknote} onChangeText={(value) => { setAmountPaid(value.replace(/\D/g, '')); setError(null); }} placeholder="0" value={amountPaid} />
-          <View style={styles.suggestions}>{suggestions.map((value) => <Button key={value} compact label={value === totals.total ? 'Uang pas' : formatCurrency(value)} onPress={() => setAmountPaid(String(value))} style={styles.suggestion} variant={numericPaid === value ? 'primary' : 'secondary'} />)}</View>
+          <Field keyboardType="number-pad" label="Uang diterima" leftIcon={Banknote} onChangeText={(value) => { setAmountPaid(formatNumericInput(value)); setError(null); }} placeholder="0" value={amountPaid} />
+          <View style={styles.suggestions}>{suggestions.map((value) => <Button key={value} compact label={value === totals.total ? 'Uang pas' : formatCurrency(value)} onPress={() => setAmountPaid(formatNumericInput(value))} style={styles.suggestion} variant={numericPaid === value ? 'primary' : 'secondary'} />)}</View>
           <View style={styles.changeRow}><Text style={styles.changeLabel}>Kembalian</Text><Text style={[styles.changeValue, numericPaid < totals.total && styles.changeNegative]}>{formatCurrency(Math.max(0, numericPaid - totals.total))}</Text></View>
         </GlassCard>
       ) : null}

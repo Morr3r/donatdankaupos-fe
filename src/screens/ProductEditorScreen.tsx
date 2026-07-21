@@ -9,7 +9,7 @@ import type { RootStackParamList } from '../navigation/types';
 import { useCatalogStore } from '../store/catalogStore';
 import { palette, radius, spacing, type } from '../theme/tokens';
 import type { InventoryItem, ProductOption } from '../types/domain';
-import { createLocalId, resolvePiecesPerUnit } from '../utils/format';
+import { createLocalId, formatNumericInput, parseNumericInput, resolvePiecesPerUnit } from '../utils/format';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ProductEditor'>;
 
@@ -21,25 +21,25 @@ export function ProductEditorScreen({ navigation, route }: Props) {
   const [sku, setSku] = useState(existing?.sku ?? '');
   const [description, setDescription] = useState(existing?.description ?? '');
   const [category, setCategory] = useState(existing?.category ?? 'Donat');
-  const [price, setPrice] = useState(existing ? String(existing.price) : '');
-  const [resellerPrice, setResellerPrice] = useState(existing?.resellerPrice != null ? String(existing.resellerPrice) : '');
+  const [price, setPrice] = useState(existing ? formatNumericInput(existing.price) : '');
+  const [resellerPrice, setResellerPrice] = useState(existing?.resellerPrice != null ? formatNumericInput(existing.resellerPrice) : '');
   const [isResellerOnly, setIsResellerOnly] = useState(existing?.isResellerOnly ?? false);
   const [imageUrl, setImageUrl] = useState(existing?.imageUrl ?? '');
   const [inventoryItemId, setInventoryItemId] = useState<string | null>(existing?.inventoryItemId ?? null);
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
   const [inventoryLoadError, setInventoryLoadError] = useState<string | null>(null);
-  const [minimumOrderQuantity, setMinimumOrderQuantity] = useState(String(existing?.minimumOrderQuantity ?? 1));
-  const [piecesPerUnit, setPiecesPerUnit] = useState(String(resolvePiecesPerUnit(existing?.piecesPerUnit, existing?.name, existing?.sourcePackaging)));
+  const [minimumOrderQuantity, setMinimumOrderQuantity] = useState(formatNumericInput(existing?.minimumOrderQuantity ?? 1));
+  const [piecesPerUnit, setPiecesPerUnit] = useState(formatNumericInput(resolvePiecesPerUnit(existing?.piecesPerUnit, existing?.name, existing?.sourcePackaging)));
   const [sourcePackaging, setSourcePackaging] = useState(existing?.sourcePackaging ?? '');
   const [variants, setVariants] = useState<ProductOption[]>(existing?.variants ?? []);
   const [toppings, setToppings] = useState<ProductOption[]>(existing?.toppings ?? []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const title = existing ? 'Edit produk' : 'Produk baru';
-  const numericPrice = Number(price.replace(/\D/g, '') || 0);
-  const numericResellerPrice = resellerPrice ? Number(resellerPrice.replace(/\D/g, '')) : null;
-  const numericMinimumOrderQuantity = Number(minimumOrderQuantity);
-  const numericPiecesPerUnit = Number(piecesPerUnit);
+  const numericPrice = parseNumericInput(price);
+  const numericResellerPrice = resellerPrice ? parseNumericInput(resellerPrice) : null;
+  const numericMinimumOrderQuantity = parseNumericInput(minimumOrderQuantity);
+  const numericPiecesPerUnit = parseNumericInput(piecesPerUnit);
   const isValid = useMemo(
     () => name.trim().length >= 2
       && sku.trim().length >= 2
@@ -146,9 +146,9 @@ export function ProductEditorScreen({ navigation, route }: Props) {
         <Field autoCapitalize="words" label="Nama produk" onChangeText={setName} placeholder="Contoh: Donat Cokelat" value={name} />
         <Field autoCapitalize="characters" label="SKU" onChangeText={setSku} placeholder="DDK-001" value={sku} />
         <Field label="Kategori" onChangeText={setCategory} placeholder="Donat" value={category} />
-        <Field keyboardType="number-pad" label="Harga pelanggan" onChangeText={(value) => setPrice(value.replace(/\D/g, ''))} placeholder="0" value={price} />
+        <Field keyboardType="number-pad" label="Harga pelanggan" onChangeText={(value) => setPrice(formatNumericInput(value))} placeholder="0" value={price} />
         <Field keyboardType="number-pad" label="Harga reseller (opsional)" onChangeText={(value) => {
-          const nextValue = value.replace(/\D/g, '');
+          const nextValue = formatNumericInput(value);
           setResellerPrice(nextValue);
           if (!nextValue) setIsResellerOnly(false);
         }} placeholder="Kosongkan jika tidak tersedia" value={resellerPrice} />
@@ -164,8 +164,8 @@ export function ProductEditorScreen({ navigation, route }: Props) {
           </View>
         ) : null}
         <Field label="Kemasan atau ukuran" onChangeText={setSourcePackaging} placeholder="Contoh: Isi 12 pcs, 35 gram, atau per pcs" value={sourcePackaging} />
-        <Field keyboardType="number-pad" label="Isi per unit (pcs)" onChangeText={(value) => setPiecesPerUnit(value.replace(/\D/g, ''))} placeholder="1" value={piecesPerUnit} />
-        <Field keyboardType="number-pad" label="Minimal unit pembelian" onChangeText={(value) => setMinimumOrderQuantity(value.replace(/\D/g, ''))} placeholder="1" value={minimumOrderQuantity} />
+        <Field keyboardType="number-pad" label="Isi per unit (pcs)" onChangeText={(value) => setPiecesPerUnit(formatNumericInput(value))} placeholder="1" value={piecesPerUnit} />
+        <Field keyboardType="number-pad" label="Minimal unit pembelian" onChangeText={(value) => setMinimumOrderQuantity(formatNumericInput(value))} placeholder="1" value={minimumOrderQuantity} />
         <Field label="Deskripsi" multiline numberOfLines={4} onChangeText={setDescription} placeholder="Deskripsi singkat produk" style={styles.multiline} value={description} />
       </GlassCard>
 
@@ -203,7 +203,7 @@ function OptionEditor({ label, options, onChange }: { label: string; options: Pr
             <View key={item.id} style={styles.optionCard}>
               <View style={styles.optionHeading}><Text style={styles.optionTitle}>{label} {index + 1}</Text><IconButton icon={Trash2} label={`Hapus ${label} ${index + 1}`} onPress={() => onChange(options.filter((option) => option.id !== item.id))} tone="danger" /></View>
               <Field label="Nama" onChangeText={(value) => update(item.id, { name: value })} placeholder={label === 'Varian' ? 'Contoh: Isi 6' : 'Contoh: Keju'} value={item.name} />
-              <Field keyboardType="number-pad" label="Tambahan harga" onChangeText={(value) => update(item.id, { priceDelta: Number(value.replace(/\D/g, '') || 0) })} placeholder="0" value={String(item.priceDelta)} />
+              <Field keyboardType="number-pad" label="Tambahan harga" onChangeText={(value) => update(item.id, { priceDelta: parseNumericInput(value) })} placeholder="0" value={formatNumericInput(item.priceDelta)} />
             </View>
           ))}
         </GlassCard>
