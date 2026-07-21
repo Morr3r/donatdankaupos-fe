@@ -1,30 +1,58 @@
 import * as Haptics from 'expo-haptics';
+import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { Banknote, Clock3, Landmark, LockKeyhole, ReceiptText, ShieldCheck, WalletCards } from 'lucide-react-native';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { expenseService } from '../api/services';
 import { Button, Divider, Field, GlassCard, Header, Screen, SectionHeader, StatusPill } from '../components/ui';
 import type { RootStackParamList } from '../navigation/types';
 import { useOperationsStore } from '../store/operationsStore';
 import { palette, radius, spacing, type } from '../theme/tokens';
 import { formatClock, formatCurrency, formatDateTime, formatNumericInput, parseNumericInput } from '../utils/format';
 import { TERMINAL_ID } from '../api/client';
+import type { ExpenseOverview } from '../types/domain';
 
 export function ShiftScreen({ navigation }: NativeStackScreenProps<RootStackParamList, 'Shift'>) {
   const shift = useOperationsStore((state) => state.shift);
   const transactions = useOperationsStore((state) => state.transactions);
   const closeShift = useOperationsStore((state) => state.closeShift);
   const [actualCash, setActualCash] = useState('');
+  const [expenseOverview, setExpenseOverview] = useState<ExpenseOverview | null>(null);
+  const [expenseError, setExpenseError] = useState<string | null>(null);
+  const [expensesLoaded, setExpensesLoaded] = useState(false);
   const shiftTransactions = useMemo(() => transactions.filter((item) => item.shiftId === shift?.id), [shift?.id, transactions]);
   const cashSales = useMemo(() => shiftTransactions.filter((item) => item.status === 'paid' && item.paymentMethod === 'cash').reduce((sum, item) => sum + item.total, 0), [shiftTransactions]);
   const nonCashSales = useMemo(() => shiftTransactions.filter((item) => item.status === 'paid' && item.paymentMethod !== 'cash').reduce((sum, item) => sum + item.total, 0), [shiftTransactions]);
-  const expectedCash = (shift?.openingCash ?? 0) + cashSales;
-  const expectedBankBalance = (shift?.openingBankBalance ?? 0) + nonCashSales;
+  const cashExpenses = expenseOverview?.cashExpenses ?? 0;
+  const bankExpenses = expenseOverview?.bankExpenses ?? 0;
+  const expectedCash = expenseOverview?.cashBalance ?? ((shift?.openingCash ?? 0) + cashSales - cashExpenses);
+  const expectedBankBalance = expenseOverview?.bankBalance ?? ((shift?.openingBankBalance ?? 0) + nonCashSales - bankExpenses);
   const actual = parseNumericInput(actualCash);
   const difference = actual - expectedCash;
 
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    setExpensesLoaded(false);
+    setExpenseError(null);
+    if (!shift?.id) {
+      setExpenseOverview(null);
+      setExpensesLoaded(true);
+      return () => { active = false; };
+    }
+    expenseService.list(shift.id)
+      .then((overview) => { if (active) setExpenseOverview(overview); })
+      .catch((loadError) => { if (active) setExpenseError(loadError instanceof Error ? loadError.message : 'Pengeluaran tidak dapat dimuat.'); })
+      .finally(() => { if (active) setExpensesLoaded(true); });
+    return () => { active = false; };
+  }, [shift?.id]));
+
   const handleClose = () => {
     if (!shift || shift.status !== 'open') return;
+    if (!expensesLoaded || expenseError) {
+      Alert.alert('Rekonsiliasi belum siap', expenseError ?? 'Tunggu data pengeluaran selesai dimuat.');
+      return;
+    }
     if (!actualCash) {
       Alert.alert('Kas aktual belum diisi', 'Hitung uang fisik di laci lalu masukkan nominalnya.');
       return;
@@ -65,6 +93,7 @@ export function ShiftScreen({ navigation }: NativeStackScreenProps<RootStackPara
       <GlassCard contentStyle={styles.reconcileCard}>
         <ReconcileRow icon={<Banknote color={palette.honey} size={17} />} label="Uang fisik awal" value={formatCurrency(shift.openingCash)} />
         <ReconcileRow label="Penjualan tunai" value={formatCurrency(cashSales)} />
+        <ReconcileRow label="Pengeluaran dari fisik" value={`− ${formatCurrency(cashExpenses)}`} />
         <Divider />
         <ReconcileRow emphasis label="Uang fisik seharusnya" value={formatCurrency(expectedCash)} />
         <Field editable={shift.status === 'open'} keyboardType="number-pad" label="Kas aktual di laci" leftIcon={Banknote} onChangeText={(value) => setActualCash(formatNumericInput(value))} placeholder="Hitung uang fisik" value={actualCash} />
@@ -72,9 +101,13 @@ export function ShiftScreen({ navigation }: NativeStackScreenProps<RootStackPara
         <Divider />
         <ReconcileRow icon={<Landmark color={palette.rose} size={17} />} label="Uang rekening awal" value={formatCurrency(shift.openingBankBalance ?? 0)} />
         <ReconcileRow label="Penjualan non-tunai" value={formatCurrency(nonCashSales)} />
+        <ReconcileRow label="Pengeluaran dari rekening" value={`− ${formatCurrency(bankExpenses)}`} />
         <Divider />
         <ReconcileRow emphasis label="Rekening estimasi" value={formatCurrency(expectedBankBalance)} />
       </GlassCard>
+
+      {expenseOverview?.totalExpenses ? <Text style={styles.expenseSummary}>Total pengeluaran shift ini {formatCurrency(expenseOverview.totalExpenses)}.</Text> : null}
+      {expenseError ? <Text accessibilityLiveRegion="assertive" style={styles.expenseError}>{expenseError}</Text> : null}
 
       <View style={styles.auditNote}><ShieldCheck color={palette.success} size={18} /><Text style={styles.auditText}>Setiap perubahan shift tersimpan bersama petugas, perangkat, dan waktu kejadian.</Text></View>
       {shift.status === 'open' ? <Button icon={LockKeyhole} label="Tutup shift" onPress={handleClose} variant="danger" /> : null}
@@ -111,6 +144,8 @@ const styles = StyleSheet.create({
   differenceLabel: { color: palette.success, fontFamily: type.semibold, fontSize: 12 },
   differenceValue: { color: palette.success, fontFamily: type.bold, fontSize: 16 },
   differenceTextWarning: { color: '#805307' },
+  expenseSummary: { color: palette.cocoa, fontFamily: type.semibold, fontSize: 11, textAlign: 'center', marginTop: spacing.md },
+  expenseError: { color: palette.danger, fontFamily: type.medium, fontSize: 11, lineHeight: 16, textAlign: 'center', marginTop: spacing.md },
   auditNote: { minHeight: 60, borderRadius: radius.md, backgroundColor: palette.successSoft, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, marginVertical: spacing.lg },
   auditText: { flex: 1, color: palette.success, fontFamily: type.medium, fontSize: 10, lineHeight: 15 },
   notFound: { color: palette.danger, fontFamily: type.medium, textAlign: 'center', marginTop: spacing.xl },

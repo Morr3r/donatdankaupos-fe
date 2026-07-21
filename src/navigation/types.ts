@@ -15,6 +15,7 @@ export type RootStackParamList = {
   OrderDetail: { transactionId: string };
   Inventory: undefined;
   Shift: undefined;
+  Expenses: undefined;
   Settings: undefined;
   Products: undefined;
   ProductEditor: { productId?: string } | undefined;

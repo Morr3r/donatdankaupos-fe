@@ -1,6 +1,6 @@
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ChevronRight, Donut, LogOut, PackageOpen, RefreshCw, Settings, ShieldCheck, Store, UserRound, WalletCards } from 'lucide-react-native';
+import { ChevronRight, Donut, LogOut, PackageOpen, ReceiptText, RefreshCw, Settings, ShieldCheck, Store, UserRound, WalletCards } from 'lucide-react-native';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { BrandLogo, Button, GlassCard, Header, ScalePressable, Screen, SectionHeader, StatusPill } from '../components/ui';
 import type { RootStackParamList } from '../navigation/types';
@@ -37,6 +37,7 @@ export function MoreScreen() {
       <SectionHeader title="Operasional" />
       <GlassCard contentStyle={styles.menuCard}>
         <MenuRow icon={WalletCards} label="Shift & kas harian" onPress={() => navigation.navigate('Shift')} subtitle="Uang fisik, rekening, dan rekonsiliasi" />
+        <MenuRow icon={ReceiptText} label="Pengeluaran" onPress={() => navigation.navigate('Expenses')} subtitle="Catat biaya dan pantau saldo kas" />
         <MenuRow icon={PackageOpen} label="Stok produk" onPress={() => navigation.navigate('Inventory')} subtitle="Pantau stok menipis dan habis" />
         {user?.role !== 'cashier' ? <MenuRow icon={Donut} label="Kelola produk" onPress={() => navigation.navigate('Products')} subtitle="Edit menu, harga, foto, varian, dan topping" /> : null}
         <MenuRow icon={RefreshCw} label="Segarkan data" onPress={async () => {

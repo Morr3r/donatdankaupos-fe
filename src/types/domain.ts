@@ -25,6 +25,27 @@ export interface Shift {
   cashDifference?: number;
 }
 
+export interface Expense {
+  id: string;
+  shiftId: string;
+  name: string;
+  amount: number;
+  bankAmount: number;
+  cashAmount: number;
+  createdAt: string;
+  createdByName: string;
+}
+
+export interface ExpenseOverview {
+  expenses: Expense[];
+  totalExpenses: number;
+  bankExpenses: number;
+  cashExpenses: number;
+  bankBalance: number;
+  cashBalance: number;
+  totalBalance: number;
+}
+
 export type ProductCategory = string;
 
 export interface ProductOption {

@@ -7,6 +7,7 @@ import type {
   Transaction,
   ProductOption,
   InventoryItem,
+  ExpenseOverview,
 } from '../types/domain';
 import { apiFileRequest, apiRequest } from './client';
 
@@ -76,6 +77,16 @@ export const shiftService = {
     method: 'POST',
     body: { closingCash },
   }),
+};
+
+export const expenseService = {
+  list: (shiftId: string) => apiRequest<ExpenseOverview>(`/expenses?shiftId=${encodeURIComponent(shiftId)}`),
+  create: (payload: { idempotencyKey: string; shiftId: string; name: string; amount: number }) =>
+    apiRequest<ExpenseOverview>('/expenses', {
+      method: 'POST',
+      body: payload,
+      headers: { 'Idempotency-Key': payload.idempotencyKey },
+    }),
 };
 
 export const inventoryService = {
