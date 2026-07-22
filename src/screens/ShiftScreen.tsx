@@ -27,7 +27,7 @@ export function ShiftScreen({ navigation }: NativeStackScreenProps<RootStackPara
   const cashExpenses = expenseOverview?.cashExpenses ?? 0;
   const bankExpenses = expenseOverview?.bankExpenses ?? 0;
   const expectedCash = expenseOverview?.cashBalance ?? ((shift?.openingCash ?? 0) + cashSales - cashExpenses);
-  const expectedBankBalance = expenseOverview?.bankBalance ?? ((shift?.openingBankBalance ?? 0) + nonCashSales - bankExpenses);
+  const expectedBankBalance = expenseOverview?.bankBalance ?? ((shift?.openingBankBalance ?? 0) - bankExpenses);
   const actual = parseNumericInput(actualCash);
   const difference = actual - expectedCash;
 
@@ -99,11 +99,11 @@ export function ShiftScreen({ navigation }: NativeStackScreenProps<RootStackPara
         <Field editable={shift.status === 'open'} keyboardType="number-pad" label="Kas aktual di laci" leftIcon={Banknote} onChangeText={(value) => setActualCash(formatNumericInput(value))} placeholder="Hitung uang fisik" value={actualCash} />
         {actualCash ? <View style={[styles.difference, difference !== 0 && styles.differenceWarning]}><Text style={[styles.differenceLabel, difference !== 0 && styles.differenceTextWarning]}>Selisih kas</Text><Text style={[styles.differenceValue, difference !== 0 && styles.differenceTextWarning]}>{difference > 0 ? '+' : ''}{formatCurrency(difference)}</Text></View> : null}
         <Divider />
-        <ReconcileRow icon={<Landmark color={palette.rose} size={17} />} label="Uang rekening awal" value={formatCurrency(shift.openingBankBalance ?? 0)} />
-        <ReconcileRow label="Penjualan non-tunai" value={formatCurrency(nonCashSales)} />
-        <ReconcileRow label="Pengeluaran dari rekening" value={`− ${formatCurrency(bankExpenses)}`} />
+        <ReconcileRow icon={<Landmark color={palette.rose} size={17} />} label="Rekening kas awal" value={formatCurrency(shift.openingBankBalance ?? 0)} />
+        <ReconcileRow label="Pengeluaran dari rekening kas" value={`− ${formatCurrency(bankExpenses)}`} />
         <Divider />
-        <ReconcileRow emphasis label="Rekening estimasi" value={formatCurrency(expectedBankBalance)} />
+        <ReconcileRow emphasis label="Sisa rekening kas" value={formatCurrency(expectedBankBalance)} />
+        <ReconcileRow label="Pendapatan non-tunai (terpisah)" value={formatCurrency(nonCashSales)} />
       </GlassCard>
 
       {expenseOverview?.totalExpenses ? <Text style={styles.expenseSummary}>Total pengeluaran shift ini {formatCurrency(expenseOverview.totalExpenses)}.</Text> : null}

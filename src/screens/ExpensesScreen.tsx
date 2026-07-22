@@ -81,7 +81,7 @@ export function ExpensesScreen({ navigation }: Props) {
 
   return (
     <Screen bottomInset={spacing.xl} contentStyle={styles.screen}>
-      <Header onBack={navigation.goBack} subtitle="Biaya shift aktif diambil dari rekening lalu uang fisik" title="Pengeluaran" />
+      <Header onBack={navigation.goBack} subtitle="Diambil dari rekening kas, lalu uang fisik bila saldo habis" title="Pengeluaran" />
 
       <GlassCard dark contentStyle={styles.heroCard}>
         <View style={styles.heroHeading}><View style={styles.heroIcon}><ReceiptText color={palette.honeySoft} size={24} /></View><StatusPill label="Shift aktif" tone="success" /></View>
@@ -91,7 +91,7 @@ export function ExpensesScreen({ navigation }: Props) {
       </GlassCard>
 
       <View style={styles.balanceGrid}>
-        <BalanceCard icon={Landmark} label="Saldo rekening" loading={loading} value={overview?.bankBalance ?? 0} />
+        <BalanceCard icon={Landmark} label="Rekening kas" loading={loading} value={overview?.bankBalance ?? 0} />
         <BalanceCard icon={Banknote} label="Uang fisik" loading={loading} value={overview?.cashBalance ?? 0} />
         <BalanceCard icon={WalletCards} label="Total tersedia" loading={loading} value={overview?.totalBalance ?? 0} />
       </View>
@@ -110,9 +110,9 @@ export function ExpensesScreen({ navigation }: Props) {
               <Text style={styles.allocationText}>Nominal melebihi total saldo tersedia {formatCurrency(availableBank + availableCash)}.</Text>
             ) : (
               <>
-                <AllocationRow label="Dari rekening" value={bankAllocation} />
+                <AllocationRow label="Dari rekening kas" value={bankAllocation} />
                 <AllocationRow label="Dari uang fisik" value={cashAllocation} />
-                {cashAllocation > 0 ? <Text style={styles.fallbackText}>Saldo rekening tidak cukup, sehingga {formatCurrency(cashAllocation)} otomatis diambil dari uang fisik.</Text> : null}
+                {cashAllocation > 0 ? <Text style={styles.fallbackText}>Saldo rekening kas tidak cukup, sehingga {formatCurrency(cashAllocation)} otomatis diambil dari uang fisik.</Text> : null}
               </>
             )}
           </View>
@@ -131,7 +131,7 @@ export function ExpensesScreen({ navigation }: Props) {
                 <Text style={styles.expenseName}>{expense.name}</Text>
                 <Text style={styles.expenseMeta}>{formatDateTime(expense.createdAt)} · {expense.createdByName}</Text>
                 <View style={styles.fundingRow}>
-                  {expense.bankAmount > 0 ? <Text style={styles.fundingBank}>Rekening {formatCurrency(expense.bankAmount)}</Text> : null}
+                  {expense.bankAmount > 0 ? <Text style={styles.fundingBank}>Rekening kas {formatCurrency(expense.bankAmount)}</Text> : null}
                   {expense.cashAmount > 0 ? <Text style={styles.fundingCash}>Fisik {formatCurrency(expense.cashAmount)}</Text> : null}
                 </View>
               </View>

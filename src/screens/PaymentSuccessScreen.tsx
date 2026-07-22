@@ -147,7 +147,7 @@ export function PaymentSuccessScreen({ navigation, route }: Props) {
         {transaction.customerName ? <DetailRow label="Pelanggan" value={transaction.customerName} /> : null}
         <DetailRow label="Kasir" value={transaction.cashierName} />
         {transaction.paymentMethod === 'transfer' ? (
-          <BcaTransferDetails helper="Rekening tujuan untuk pembayaran invoice ini." style={styles.invoiceBankCard} />
+          <BcaTransferDetails helper="Rekening tujuan untuk pembayaran" style={styles.invoiceBankCard} />
         ) : null}
         <Divider />
         <DetailRow label="Jumlah donat" value={`${transaction.pieceCount} pcs`} />
@@ -158,7 +158,7 @@ export function PaymentSuccessScreen({ navigation, route }: Props) {
         <View style={styles.invoiceTotalRow}><Text style={styles.invoiceTotalLabel}>Total pembayaran</Text><Text style={styles.invoiceTotalValue}>{formatCurrency(transaction.total)}</Text></View>
         {transaction.paymentMethod === 'cash' ? <DetailRow label="Uang diterima" value={formatCurrency(transaction.amountPaid)} /> : null}
         {transaction.change > 0 ? <DetailRow label="Kembalian" value={formatCurrency(transaction.change)} /> : null}
-        <Text style={styles.invoiceThanks}>Terima kasih sudah berbelanja di Donat &amp; Kau.</Text>
+        <Text style={styles.invoiceThanks}>Terima kasih sudah berbelanja di Donat Dankau.</Text>
       </GlassCard>
       </ViewShot>
 

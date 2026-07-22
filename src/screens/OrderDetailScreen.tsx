@@ -133,7 +133,7 @@ export function OrderDetailScreen({ navigation, route }: Props) {
       {transaction.paymentMethod === 'transfer' ? (
         <>
           <SectionHeader title="Rekening transfer" />
-          <BcaTransferDetails helper="Rekening tujuan untuk pembayaran invoice ini." />
+          <BcaTransferDetails helper="Rekening tujuan untuk pembayaran." />
         </>
       ) : null}
       </ViewShot>

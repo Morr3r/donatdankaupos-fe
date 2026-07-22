@@ -27,7 +27,6 @@ export function LoginScreen() {
     try {
       await login({ email: normalizedEmail, password });
     } catch {
-      // Error state is rendered directly below the fields.
     }
   };
 

@@ -33,9 +33,9 @@ export function OpenShiftScreen() {
         ? 'Masukkan uang fisik yang valid.'
         : null;
     const nextBankError = openingBankBalance.trim().length === 0
-      ? 'Uang rekening wajib diisi. Jika saldo kosong, masukkan 0.'
+      ? 'Uang rekening kas wajib diisi. Jika saldo kosong, masukkan 0.'
       : !Number.isFinite(bankValue) || bankValue < 0
-        ? 'Masukkan uang rekening yang valid.'
+        ? 'Masukkan uang rekening kas yang valid.'
         : null;
     setPhysicalError(nextPhysicalError);
     setBankError(nextBankError);
@@ -66,7 +66,7 @@ export function OpenShiftScreen() {
       <View style={styles.hero}>
         <StatusPill label="Wajib setiap hari" tone="warning" />
         <Text accessibilityRole="header" style={styles.title}>Buka shift hari ini</Text>
-        <Text style={styles.subtitle}>Sebelum mulai berjualan, catat uang fisik dan saldo rekening hari ini.</Text>
+        <Text style={styles.subtitle}>Sebelum mulai berjualan, catat uang fisik dan saldo rekening kas hari ini.</Text>
       </View>
 
       <GlassCard contentStyle={styles.shiftCard}>
@@ -104,7 +104,7 @@ export function OpenShiftScreen() {
         <Field
           error={bankError}
           keyboardType="number-pad"
-          label="Uang rekening"
+          label="Uang rekening kas"
           leftIcon={Landmark}
           onChangeText={(value) => { setOpeningBankBalance(formatNumericInput(value)); setBankError(null); setSubmitError(null); }}
           placeholder="0"
@@ -114,7 +114,7 @@ export function OpenShiftScreen() {
 
         {submitError ? <Text style={styles.formError}>{submitError}</Text> : null}
         <Button disabled={!hasOpeningBalances} icon={Clock3} label="Buka shift & mulai jualan" loading={submitting} onPress={handleOpen} />
-        <Text style={styles.helper}>Kedua field wajib diisi setiap hari. Masukkan angka 0 jika uang fisik atau saldo rekening kosong.</Text>
+        <Text style={styles.helper}>Kedua field wajib diisi setiap hari. Masukkan angka 0 jika uang fisik atau saldo rekening kas kosong.</Text>
       </GlassCard>
     </Screen>
   );

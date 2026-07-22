@@ -56,6 +56,8 @@ Shift mengikuti hari operasional `Asia/Jakarta`. Setelah tanggal berganti, shift
 otomatis tanpa membuat shift baru; kasir wajib mengisi `openingCash` untuk uang fisik dan
 `openingBankBalance` untuk saldo rekening sebelum penjualan dapat dilanjutkan. Nilai `0`
 valid untuk masing-masing saldo, tetapi kedua field tidak boleh dilewati pada aplikasi.
+Pengeluaran mengambil dana dari `openingBankBalance` terlebih dahulu, tanpa memasukkan hasil
+penjualan non-tunai. Jika saldo rekening kas habis, sisa pengeluaran mengambil uang fisik di kas.
 
 Respons `/reports/sales-summary` menyertakan `pieceCount`, `costPerItem`, `costOfGoodsSold`,
 `netProfit`, dan `netMarginPercent`. HPP saat ini dipukul rata Rp2.650 per pcs donat
