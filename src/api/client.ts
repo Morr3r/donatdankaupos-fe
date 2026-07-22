@@ -91,7 +91,7 @@ export async function apiFileRequest(path: string, retryAfterRefresh = true): Pr
     throw new ApiError('Layanan belum siap digunakan pada perangkat ini.', 0, 'API_URL_MISSING');
   }
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 30_000);
+  const timeout = setTimeout(() => controller.abort(), 120_000);
   try {
     const response = await fetch(`${API_BASE_URL}${path}`, {
       signal: controller.signal,
@@ -116,7 +116,7 @@ export async function apiFileRequest(path: string, retryAfterRefresh = true): Pr
       throw new ApiError(error.message ?? detail ?? 'File laporan tidak dapat dibuat.', response.status, error.code);
     }
     const disposition = response.headers.get('content-disposition') ?? '';
-    const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1] ?? 'laporan-penjualan.xlsx';
+    const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1] ?? 'laporan-operasional.xlsx';
     return { bytes: new Uint8Array(await response.arrayBuffer()), filename };
   } catch (error) {
     if (error instanceof ApiError) throw error;

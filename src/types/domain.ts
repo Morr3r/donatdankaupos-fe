@@ -25,6 +25,8 @@ export interface Shift {
   cashDifference?: number;
 }
 
+export type ExpenseFundingSource = 'bank' | 'cash';
+
 export interface Expense {
   id: string;
   shiftId: string;
@@ -32,8 +34,13 @@ export interface Expense {
   amount: number;
   bankAmount: number;
   cashAmount: number;
+  fundingSource: ExpenseFundingSource | 'mixed';
+  status: 'active' | 'cancelled';
   createdAt: string;
   createdByName: string;
+  cancelledAt?: string;
+  cancelReason?: string;
+  cancelledByName?: string;
 }
 
 export interface ExpenseOverview {

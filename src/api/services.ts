@@ -8,6 +8,7 @@ import type {
   ProductOption,
   InventoryItem,
   ExpenseOverview,
+  ExpenseFundingSource,
 } from '../types/domain';
 import { apiFileRequest, apiRequest } from './client';
 
@@ -81,12 +82,16 @@ export const shiftService = {
 
 export const expenseService = {
   list: (shiftId: string) => apiRequest<ExpenseOverview>(`/expenses?shiftId=${encodeURIComponent(shiftId)}`),
-  create: (payload: { idempotencyKey: string; shiftId: string; name: string; amount: number }) =>
+  create: (payload: { idempotencyKey: string; shiftId: string; name: string; amount: number; fundingSource: ExpenseFundingSource }) =>
     apiRequest<ExpenseOverview>('/expenses', {
       method: 'POST',
       body: payload,
       headers: { 'Idempotency-Key': payload.idempotencyKey },
     }),
+  cancel: (id: string, reason: string) => apiRequest<ExpenseOverview>(`/expenses/${id}/cancellations`, {
+    method: 'POST',
+    body: { reason },
+  }),
 };
 
 export const inventoryService = {

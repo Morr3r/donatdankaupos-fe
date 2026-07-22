@@ -45,6 +45,9 @@ Tambahkan `POST /auth/refresh`, `POST /auth/logout`, dan `GET /me`. Role: `cashi
 | GET | `/sales` | Filter tanggal, status, metode bayar, query, cursor |
 | GET | `/sales/{id}` | Detail transaksi/struk |
 | POST | `/sales/{id}/refunds` | Refund dengan manager approval + reason |
+| GET | `/expenses?shiftId=...` | Riwayat dan saldo pengeluaran shift |
+| POST | `/expenses` | Catat pengeluaran dari rekening kas atau uang fisik |
+| POST | `/expenses/{id}/cancellations` | Batalkan pengeluaran dan kembalikan saldo sumber dana |
 | GET | `/inventory-items` | Empat kelompok stok fisik per pcs |
 | POST | `/inventory-adjustments` | Stock opname/restock kelompok stok dengan audit trail |
 | GET | `/reports/sales-summary` | KPI dan time series periode |
@@ -56,8 +59,11 @@ Shift mengikuti hari operasional `Asia/Jakarta`. Setelah tanggal berganti, shift
 otomatis tanpa membuat shift baru; kasir wajib mengisi `openingCash` untuk uang fisik dan
 `openingBankBalance` untuk saldo rekening sebelum penjualan dapat dilanjutkan. Nilai `0`
 valid untuk masing-masing saldo, tetapi kedua field tidak boleh dilewati pada aplikasi.
-Pengeluaran mengambil dana dari `openingBankBalance` terlebih dahulu, tanpa memasukkan hasil
-penjualan non-tunai. Jika saldo rekening kas habis, sisa pengeluaran mengambil uang fisik di kas.
+Pengeluaran baru mengirim `fundingSource` (`bank` atau `cash`) agar kasir dapat memilih dana dari
+saldo rekening kas atau uang fisik. Hasil penjualan non-tunai tetap tidak menambah saldo rekening
+kas yang tersedia untuk pengeluaran. `POST /expenses/{id}/cancellations` menerima `reason`,
+menandai catatan sebagai dibatalkan, dan mengembalikan nominal ke sumber dana asal. Catatan tidak
+dihapus permanen agar jejak audit tetap tersedia.
 
 Respons `/reports/sales-summary` menyertakan `pieceCount`, `costPerItem`, `costOfGoodsSold`,
 `netProfit`, dan `netMarginPercent`. HPP saat ini dipukul rata Rp2.650 per pcs donat
