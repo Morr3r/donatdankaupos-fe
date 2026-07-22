@@ -4,7 +4,7 @@
     "slug": "donatdankau-fe",
     "version": "1.0.0",
     "scheme": "donatdankau-pos",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/donat-dankau-logo.png",
     "userInterfaceStyle": "light",
     "backgroundColor": "#140D0A",

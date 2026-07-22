@@ -2,7 +2,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ArrowUpRight, ReceiptText, RefreshCw, Search } from 'lucide-react-native';
 import { useCallback, useMemo, useState } from 'react';
-import { FlatList, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { FlatList, StyleSheet, Text, View } from 'react-native';
 import { saleService } from '../api/services';
 import { DateRangePicker } from '../components/date-range-picker';
 import { Button, Chip, GlassCard, Header, ScalePressable, Screen, SearchField, StatusPill } from '../components/ui';
@@ -11,6 +11,7 @@ import { palette, radius, spacing, type } from '../theme/tokens';
 import type { Transaction, TransactionStatus } from '../types/domain';
 import { type DateRangeSelection, makeDateRange, toSalesQuery } from '../utils/date';
 import { formatCurrency, formatDateTime, paymentLabels } from '../utils/format';
+import { useResponsiveLayout } from '../utils/responsive';
 
 type Filter = 'all' | TransactionStatus;
 const filters: { id: Filter; label: string }[] = [
@@ -21,7 +22,7 @@ const filters: { id: Filter; label: string }[] = [
 
 export function OrdersScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { width } = useWindowDimensions();
+  const { isLandscapePhone, width } = useResponsiveLayout();
   const isWide = width >= 960;
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -60,13 +61,17 @@ export function OrdersScreen() {
   return (
     <Screen contentStyle={styles.screen} scroll={false}>
       <Header eyebrow="Penjualan" subtitle="Telusuri pembayaran dan refund berdasarkan tanggal" title="Transaksi" />
-      <GlassCard contentStyle={styles.summaryCard}>
-        <View><Text style={styles.summaryLabel}>Nilai transaksi berhasil</Text><Text style={styles.summaryValue}>{formatCurrency(total)}</Text></View>
-        <View style={styles.summaryCount}><ReceiptText color={palette.cocoa} size={18} /><Text style={styles.summaryCountText}>{filtered.filter((item) => item.status === 'paid').length} struk</Text></View>
-      </GlassCard>
-      <DateRangePicker onChange={setRange} value={range} />
-      <SearchField onChangeText={setSearch} placeholder="No. struk atau pelanggan" value={search} />
-      <View style={styles.filterRow}>{filters.map((item) => <Chip key={item.id} label={item.label} onPress={() => setFilter(item.id)} selected={filter === item.id} />)}</View>
+      <View style={[styles.summaryPeriod, isLandscapePhone && styles.summaryPeriodLandscape]}>
+        <GlassCard style={isLandscapePhone ? styles.summaryShellLandscape : undefined} contentStyle={[styles.summaryCard, isLandscapePhone && styles.summaryCardLandscape]}>
+          <View><Text style={styles.summaryLabel}>Nilai transaksi berhasil</Text><Text style={[styles.summaryValue, isLandscapePhone && styles.summaryValueLandscape]}>{formatCurrency(total)}</Text></View>
+          <View style={styles.summaryCount}><ReceiptText color={palette.cocoa} size={18} /><Text style={styles.summaryCountText}>{filtered.filter((item) => item.status === 'paid').length} struk</Text></View>
+        </GlassCard>
+        <View style={isLandscapePhone ? styles.periodLandscape : undefined}><DateRangePicker onChange={setRange} value={range} /></View>
+      </View>
+      <View style={[styles.searchFilters, isLandscapePhone && styles.searchFiltersLandscape]}>
+        <View style={styles.searchWrap}><SearchField onChangeText={setSearch} placeholder="No. struk atau pelanggan" value={search} /></View>
+        <View style={[styles.filterRow, isLandscapePhone && styles.filterRowLandscape]}>{filters.map((item) => <Chip key={item.id} label={item.label} onPress={() => setFilter(item.id)} selected={filter === item.id} />)}</View>
+      </View>
       {error ? <View style={styles.errorPanel}><Text accessibilityLiveRegion="polite" style={styles.errorText}>{error}</Text><Button compact icon={RefreshCw} label="Coba lagi" onPress={() => refresh().catch(() => undefined)} variant="secondary" /></View> : null}
       {isWide ? (
         <GlassCard style={styles.tableCard} contentStyle={styles.tableSurface}>
@@ -148,12 +153,22 @@ function SalesTableRow({ item, onPress }: { item: Transaction; onPress: () => vo
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  summaryPeriod: { width: '100%' },
+  summaryPeriodLandscape: { flexDirection: 'row', alignItems: 'stretch', gap: spacing.xs, marginBottom: spacing.xs },
+  summaryShellLandscape: { width: 250, minWidth: 250, maxWidth: 250, flexShrink: 0 },
+  periodLandscape: { flex: 1, minWidth: 0 },
   summaryCard: { marginBottom: spacing.md, padding: spacing.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  summaryCardLandscape: { minHeight: 52, marginBottom: 0, paddingVertical: spacing.xs, paddingHorizontal: spacing.sm },
   summaryLabel: { color: palette.muted, fontFamily: type.medium, fontSize: 10 },
   summaryValue: { color: palette.ink, fontFamily: type.bold, fontSize: 20, marginTop: 3 },
+  summaryValueLandscape: { fontSize: 16 },
   summaryCount: { minHeight: 36, paddingHorizontal: spacing.sm, flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: radius.pill, backgroundColor: palette.roseSoft },
   summaryCountText: { color: palette.cocoa, fontFamily: type.bold, fontSize: 11 },
+  searchFilters: { width: '100%' },
+  searchFiltersLandscape: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.xs },
+  searchWrap: { flex: 1, minWidth: 0 },
   filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, paddingVertical: spacing.md },
+  filterRowLandscape: { flexWrap: 'nowrap', paddingVertical: 0 },
   errorPanel: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderRadius: radius.md, padding: spacing.sm, marginBottom: spacing.sm, backgroundColor: palette.dangerSoft },
   errorText: { flex: 1, color: palette.danger, fontFamily: type.medium, fontSize: 11, lineHeight: 17 },
   list: { gap: spacing.sm, paddingBottom: 120 },

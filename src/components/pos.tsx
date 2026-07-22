@@ -70,10 +70,11 @@ export const ProductCard = memo(function ProductCard({ product, cartQuantity = 0
   );
 });
 
-export function PricingModeSelector({ value, resellerCount, onChange }: {
+export function PricingModeSelector({ value, resellerCount, onChange, compact = false }: {
   value: PricingMode;
   resellerCount: number;
   onChange: (mode: PricingMode) => void;
+  compact?: boolean;
 }) {
   const options: { id: PricingMode; label: string; helper: string; icon: typeof UserRound }[] = [
     { id: 'customer', label: 'Pelanggan', helper: 'Harga reguler', icon: UserRound },
@@ -81,15 +82,15 @@ export function PricingModeSelector({ value, resellerCount, onChange }: {
   ];
 
   return (
-    <BlurView intensity={74} tint="light" style={styles.pricingModeShell}>
-      <View style={styles.pricingModeHeading}>
+    <BlurView intensity={74} tint="light" style={[styles.pricingModeShell, compact && styles.pricingModeShellCompact]}>
+      {!compact ? <View style={styles.pricingModeHeading}>
         <View style={styles.pricingModeCopy}>
           <Text style={styles.pricingModeTitle}>Pilih jenis harga</Text>
           <Text style={styles.pricingModeSubtitle}>Satu pilihan berlaku untuk seluruh transaksi.</Text>
         </View>
         <View style={styles.pricingActiveMark}><Check color={palette.success} size={15} strokeWidth={2.5} /></View>
-      </View>
-      <View accessibilityRole="tablist" style={styles.pricingModeTrack}>
+      </View> : null}
+      <View accessibilityRole="tablist" style={[styles.pricingModeTrack, compact && styles.pricingModeTrackCompact]}>
         {options.map(({ id, label, helper, icon: Icon }) => {
           const selected = value === id;
           return (
@@ -100,22 +101,22 @@ export function PricingModeSelector({ value, resellerCount, onChange }: {
               accessibilityState={{ selected }}
               containerStyle={styles.pricingModeOptionContainer}
               onPress={() => onChange(id)}
-              style={[styles.pricingModeOption, selected && styles.pricingModeOptionSelected]}
+              style={[styles.pricingModeOption, compact && styles.pricingModeOptionCompact, selected && styles.pricingModeOptionSelected]}
             >
-              <View style={[styles.pricingModeIcon, selected && styles.pricingModeIconSelected]}>
+              <View style={[styles.pricingModeIcon, compact && styles.pricingModeIconCompact, selected && styles.pricingModeIconSelected]}>
                 <Icon color={selected ? palette.white : palette.cocoa} size={19} strokeWidth={2} />
               </View>
               <View style={styles.pricingModeOptionCopy}>
                 <Text style={[styles.pricingModeOptionLabel, selected && styles.pricingModeOptionLabelSelected]}>{label}</Text>
-                <Text style={[styles.pricingModeOptionHelper, selected && styles.pricingModeOptionHelperSelected]}>{helper}</Text>
+                {!compact ? <Text style={[styles.pricingModeOptionHelper, selected && styles.pricingModeOptionHelperSelected]}>{helper}</Text> : null}
               </View>
             </ScalePressable>
           );
         })}
       </View>
-      <Text accessibilityLiveRegion="polite" style={styles.pricingModeSummary}>
+      {!compact ? <Text accessibilityLiveRegion="polite" style={styles.pricingModeSummary}>
         {value === 'reseller' ? `${resellerCount} produk dengan harga reseller tersedia` : 'Seluruh katalog memakai harga pelanggan'}
-      </Text>
+      </Text> : null}
     </BlurView>
   );
 }
@@ -155,7 +156,7 @@ export const CartRow = memo(function CartRow({ item, onChange, onRemove }: CartR
 
 export function CartFloatingBar({ count, total, pricingMode, onPress, onClear, compact = false }: { count: number; total: number; pricingMode: PricingMode; onPress: () => void; onClear: () => void; compact?: boolean }) {
   return (
-    <GlassCard style={styles.cartFloating} contentStyle={[styles.cartFloatingInner, compact && styles.cartFloatingInnerCompact]}>
+    <GlassCard style={[styles.cartFloating, compact && styles.cartFloatingCompact]} contentStyle={[styles.cartFloatingInner, compact && styles.cartFloatingInnerCompact]}>
       {!compact ? <View style={styles.cartIcon}><ShoppingBag color={palette.white} size={20} /></View> : null}
       <View style={styles.cartFloatingCopy}>
         <Text numberOfLines={1} style={styles.cartFloatingLabel}>{count} item · {pricingMode === 'reseller' ? 'Harga reseller' : 'Harga pelanggan'}</Text>
@@ -208,16 +209,20 @@ const styles = StyleSheet.create({
   productPrice: { color: palette.cocoa, fontFamily: type.bold, fontSize: 14 },
   productOriginalPrice: { color: palette.muted, fontFamily: type.medium, fontSize: 10, textDecorationLine: 'line-through' },
   pricingModeShell: { marginBottom: spacing.md, padding: spacing.sm, borderRadius: radius.xl, borderCurve: 'continuous', overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.92)', backgroundColor: 'rgba(255,255,255,0.38)' },
+  pricingModeShellCompact: { marginBottom: 0, padding: spacing.xxs, borderRadius: radius.lg },
   pricingModeHeading: { minHeight: 42, paddingHorizontal: spacing.xs, paddingBottom: spacing.xs, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   pricingModeCopy: { flex: 1 },
   pricingModeTitle: { color: palette.ink, fontFamily: type.bold, fontSize: 14 },
   pricingModeSubtitle: { color: palette.muted, fontFamily: type.regular, fontSize: 10, lineHeight: 15, marginTop: 2 },
   pricingActiveMark: { width: 32, height: 32, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.successSoft, borderWidth: 1, borderColor: 'rgba(38,122,85,0.12)' },
   pricingModeTrack: { width: '100%', maxWidth: 540, flexDirection: 'row', gap: spacing.xs, padding: spacing.xxs, borderRadius: radius.lg, borderCurve: 'continuous', backgroundColor: 'rgba(86,49,31,0.07)', borderWidth: 1, borderColor: 'rgba(86,49,31,0.08)' },
+  pricingModeTrackCompact: { gap: spacing.xxs, padding: 2, borderRadius: radius.md },
   pricingModeOptionContainer: { flex: 1, minWidth: 0 },
   pricingModeOption: { flex: 1, minHeight: 62, paddingHorizontal: spacing.sm, borderRadius: radius.md, borderCurve: 'continuous', flexDirection: 'row', alignItems: 'center', gap: spacing.xs, backgroundColor: 'rgba(255,255,255,0.38)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.46)' },
+  pricingModeOptionCompact: { minHeight: 42, paddingHorizontal: spacing.xs, gap: 6, borderRadius: radius.sm },
   pricingModeOptionSelected: { backgroundColor: palette.cocoaDark, borderColor: 'rgba(255,255,255,0.18)' },
   pricingModeIcon: { width: 38, height: 38, flexShrink: 0, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.68)' },
+  pricingModeIconCompact: { width: 32, height: 32, borderRadius: 11 },
   pricingModeIconSelected: { backgroundColor: 'rgba(255,255,255,0.14)' },
   pricingModeOptionCopy: { flex: 1, minWidth: 0 },
   pricingModeOptionLabel: { color: palette.ink, fontFamily: type.bold, fontSize: 13 },
@@ -237,8 +242,9 @@ const styles = StyleSheet.create({
   quantityButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   quantityText: { minWidth: 24, color: palette.ink, textAlign: 'center', fontFamily: type.bold, fontSize: 13 },
   cartFloating: { marginTop: spacing.lg, borderRadius: radius.xl, ...shadow.floating },
+  cartFloatingCompact: { marginTop: 0, borderRadius: radius.lg },
   cartFloatingInner: { minHeight: 76, padding: spacing.sm, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  cartFloatingInnerCompact: { gap: spacing.xs },
+  cartFloatingInnerCompact: { minHeight: 56, padding: spacing.xxs, gap: spacing.xs, backgroundColor: 'rgba(255,253,249,0.96)' },
   cartIcon: { width: 48, height: 48, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.cocoaDark },
   cartFloatingCopy: { flex: 1, minWidth: 0 },
   cartFloatingLabel: { color: palette.muted, fontFamily: type.medium, fontSize: 11 },

@@ -10,6 +10,7 @@ import { useSessionStore } from '../store/sessionStore';
 import { palette, radius, spacing, type } from '../theme/tokens';
 import type { InventoryItem } from '../types/domain';
 import { formatNumericInput, parseNumericInput } from '../utils/format';
+import { useResponsiveLayout } from '../utils/responsive';
 
 type StockFilter = 'Semua' | 'Menipis' | 'Aman';
 
@@ -23,6 +24,7 @@ const inventoryColors: Record<string, { background: string; accent: string }> = 
 };
 
 export function InventoryScreen({ navigation }: NativeStackScreenProps<RootStackParamList, 'Inventory'>) {
+  const { isLandscapePhone } = useResponsiveLayout();
   const user = useSessionStore((state) => state.user);
   const canAdjust = user?.role === 'manager' || user?.role === 'owner';
   const [items, setItems] = useState<InventoryItem[]>([]);
@@ -89,14 +91,18 @@ export function InventoryScreen({ navigation }: NativeStackScreenProps<RootStack
   };
 
   return (
-    <Screen contentStyle={styles.screen} scroll={false}>
+    <Screen bottomInset={spacing.md} contentStyle={styles.screen} scroll={false}>
       <Header onBack={navigation.goBack} subtitle="Total donat fisik per ukuran, dihitung per pcs" title="Stok Donat" />
-      <View style={styles.metrics}>
-        <GlassCard style={styles.metric} contentStyle={styles.metricInner}><PackageCheck color={palette.success} size={22} /><Text style={styles.metricValue}>{safeStock}</Text><Text style={styles.metricLabel}>Stok aman</Text></GlassCard>
-        <GlassCard style={styles.metric} contentStyle={styles.metricInner}><AlertTriangle color={palette.honey} size={22} /><Text style={styles.metricValue}>{lowStock}</Text><Text style={styles.metricLabel}>Perlu restock</Text></GlassCard>
+      <View style={[styles.topControls, isLandscapePhone && styles.topControlsLandscape]}>
+        <View style={[styles.metrics, isLandscapePhone && styles.metricsLandscape]}>
+          <GlassCard style={styles.metric} contentStyle={[styles.metricInner, isLandscapePhone && styles.metricInnerLandscape]}><PackageCheck color={palette.success} size={22} /><Text style={[styles.metricValue, isLandscapePhone && styles.metricValueLandscape]}>{safeStock}</Text><Text style={styles.metricLabel}>Stok aman</Text></GlassCard>
+          <GlassCard style={styles.metric} contentStyle={[styles.metricInner, isLandscapePhone && styles.metricInnerLandscape]}><AlertTriangle color={palette.honey} size={22} /><Text style={[styles.metricValue, isLandscapePhone && styles.metricValueLandscape]}>{lowStock}</Text><Text style={styles.metricLabel}>Perlu restock</Text></GlassCard>
+        </View>
+        <View style={styles.filterControls}>
+          <SearchField onChangeText={setSearch} placeholder="Cari ukuran donat" value={search} />
+          <View style={[styles.filters, isLandscapePhone && styles.filtersLandscape]}>{(['Semua', 'Menipis', 'Aman'] as StockFilter[]).map((item) => <Chip key={item} label={item} onPress={() => setFilter(item)} selected={filter === item} />)}</View>
+        </View>
       </View>
-      <SearchField onChangeText={setSearch} placeholder="Cari ukuran donat" value={search} />
-      <View style={styles.filters}>{(['Semua', 'Menipis', 'Aman'] as StockFilter[]).map((item) => <Chip key={item} label={item} onPress={() => setFilter(item)} selected={filter === item} />)}</View>
       {loadError ? <Text accessibilityLiveRegion="assertive" style={styles.loadError}>{loadError}</Text> : null}
       <FlatList
         contentContainerStyle={styles.list}
@@ -143,12 +149,19 @@ export function InventoryScreen({ navigation }: NativeStackScreenProps<RootStack
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  topControls: { width: '100%' },
+  topControlsLandscape: { flexDirection: 'row', alignItems: 'stretch', gap: spacing.sm, marginBottom: spacing.xs },
   metrics: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
+  metricsLandscape: { flex: 0.75, minWidth: 0, marginBottom: 0 },
   metric: { flex: 1 },
   metricInner: { minHeight: 116, padding: spacing.md },
+  metricInnerLandscape: { minHeight: 108, padding: spacing.xs, alignItems: 'center', justifyContent: 'center' },
   metricValue: { color: palette.ink, fontFamily: type.bold, fontSize: 22, marginTop: spacing.sm },
+  metricValueLandscape: { fontSize: 18, marginTop: spacing.xxs },
   metricLabel: { color: palette.muted, fontFamily: type.medium, fontSize: 10, marginTop: 2 },
+  filterControls: { flex: 1.25, minWidth: 0 },
   filters: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, paddingVertical: spacing.md },
+  filtersLandscape: { flexWrap: 'nowrap', paddingVertical: spacing.xxs },
   list: { gap: spacing.sm, paddingBottom: spacing.xl },
   productCard: { marginBottom: spacing.sm },
   productRow: { minHeight: 104, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.sm },

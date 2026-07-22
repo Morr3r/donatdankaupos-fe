@@ -1,7 +1,7 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Edit3, ImageOff, Plus, Search, Trash2 } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
-import { Alert, FlatList, Image, type ImageStyle, Platform, ScrollView, type StyleProp, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Alert, FlatList, Image, type ImageStyle, Platform, ScrollView, type StyleProp, StyleSheet, Text, View } from 'react-native';
 import { catalogService } from '../api/services';
 import { Button, Chip, GlassCard, Header, IconButton, Screen, SearchField, StatusPill } from '../components/ui';
 import type { RootStackParamList } from '../navigation/types';
@@ -9,12 +9,14 @@ import { useCatalogStore } from '../store/catalogStore';
 import { palette, radius, spacing, type } from '../theme/tokens';
 import type { Product } from '../types/domain';
 import { formatCurrency } from '../utils/format';
+import { useResponsiveLayout } from '../utils/responsive';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Products'>;
 
 export function ProductManagementScreen({ navigation }: Props) {
-  const { width } = useWindowDimensions();
+  const { isLandscapePhone, width } = useResponsiveLayout();
   const isWide = width >= 960;
+  const isToolbarWide = isWide || isLandscapePhone;
   const products = useCatalogStore((state) => state.products);
   const isLoading = useCatalogStore((state) => state.isLoading);
   const loadError = useCatalogStore((state) => state.error);
@@ -60,10 +62,10 @@ export function ProductManagementScreen({ navigation }: Props) {
   };
 
   return (
-    <Screen bottomInset={spacing.md} contentStyle={styles.screen} scroll={false}>
+    <Screen bottomInset={spacing.md} contentStyle={[styles.screen, isLandscapePhone && styles.screenLandscape]} scroll={false}>
       <Header onBack={navigation.goBack} subtitle="Atur menu, harga, foto, varian, dan topping" title="Kelola produk" />
-      <View style={[styles.toolbar, isWide && styles.toolbarWide]}>
-        <View style={[styles.search, isWide && styles.searchWide]}><SearchField onChangeText={setQuery} placeholder="Cari nama, SKU, kategori, atau kemasan" value={query} /></View>
+      <View style={[styles.toolbar, isToolbarWide && styles.toolbarWide]}>
+        <View style={[styles.search, isToolbarWide && styles.searchWide]}><SearchField onChangeText={setQuery} placeholder="Cari nama, SKU, kategori, atau kemasan" value={query} /></View>
         <Button compact icon={Plus} label="Tambah produk" onPress={() => navigation.navigate('ProductEditor')} style={styles.addButton} />
       </View>
       <ScrollView contentContainerStyle={styles.categories} horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
@@ -201,6 +203,7 @@ function EmptyProducts() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, minHeight: 0, minWidth: 0, gap: spacing.md },
+  screenLandscape: { gap: spacing.xs },
   toolbar: { flexShrink: 0, gap: spacing.sm },
   toolbarWide: { flexDirection: 'row', alignItems: 'center' },
   search: { width: '100%', flexShrink: 0 },

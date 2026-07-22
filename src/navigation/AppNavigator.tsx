@@ -21,6 +21,7 @@ import { ProductManagementScreen } from '../screens/ProductManagementScreen';
 import { ProductEditorScreen } from '../screens/ProductEditorScreen';
 import { palette, radius, shadow, type } from '../theme/tokens';
 import { useReducedMotion } from '../utils/useReducedMotion';
+import { useResponsiveLayout } from '../utils/responsive';
 import { SwipeableTabScene } from './SwipeableTabScene';
 import type { MainTabParamList, RootStackParamList } from './types';
 
@@ -110,6 +111,7 @@ const interpolateTabScene: NonNullable<BottomTabNavigationOptions['sceneStyleInt
 
 function MainTabs() {
   const insets = useSafeAreaInsets();
+  const { isLandscapePhone } = useResponsiveLayout();
   const reduceMotion = useReducedMotion();
   return (
     <Tab.Navigator
@@ -126,14 +128,22 @@ function MainTabs() {
           tabBarInactiveTintColor: '#8D7A70',
           tabBarBackground: () => <BlurView intensity={78} tint="light" style={StyleSheet.absoluteFill} />,
           tabBarHideOnKeyboard: true,
-          tabBarIcon: ({ color, focused, size }) => (
-            <View style={[styles.tabIcon, focused && styles.tabIconActive]}>
+          tabBarIcon: ({ color, focused }) => (
+            <View style={[styles.tabIcon, isLandscapePhone && styles.tabIconLandscape, focused && styles.tabIconActive]}>
               <Icon color={focused ? palette.white : color} size={focused ? 20 : 21} strokeWidth={focused ? 2.3 : 1.9} />
             </View>
           ),
           tabBarLabel: labels[route.name],
-          tabBarLabelStyle: styles.tabLabel,
-          tabBarStyle: [styles.tabBar, { bottom: Math.max(insets.bottom, 10) + 6 }],
+          tabBarLabelStyle: [styles.tabLabel, isLandscapePhone && styles.tabLabelLandscape],
+          tabBarStyle: [
+            styles.tabBar,
+            isLandscapePhone && styles.tabBarLandscape,
+            {
+              bottom: Math.max(insets.bottom, isLandscapePhone ? 4 : 10) + (isLandscapePhone ? 2 : 6),
+              left: Math.max(insets.left, 12),
+              right: Math.max(insets.right, 12),
+            },
+          ],
         };
       }}
     >
@@ -192,7 +202,10 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     ...shadow.floating,
   },
+  tabBarLandscape: { height: 58, paddingTop: 3, paddingBottom: 4, borderRadius: radius.lg },
   tabIcon: { width: 35, height: 30, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  tabIconLandscape: { width: 32, height: 26, borderRadius: 11 },
   tabIconActive: { backgroundColor: palette.cocoaDark },
   tabLabel: { fontFamily: type.bold, fontSize: 9, marginTop: 2 },
+  tabLabelLandscape: { fontSize: 8, marginTop: 0 },
 });

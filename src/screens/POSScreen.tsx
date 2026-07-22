@@ -3,7 +3,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ShoppingBag, Sparkles, Trash2 } from 'lucide-react-native';
 import { useCallback, useMemo, useState } from 'react';
-import { Alert, FlatList, Platform, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Alert, FlatList, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CartFloatingBar, CartRow, PricingModeSelector, ProductCard } from '../components/pos';
 import { ProductSelectionModal, type ProductSelectionValue } from '../components/product-selection-modal';
@@ -16,14 +16,13 @@ import { useSessionStore } from '../store/sessionStore';
 import { palette, radius, spacing, type } from '../theme/tokens';
 import type { PricingMode, Product, ProductCategory } from '../types/domain';
 import { formatCurrency, getCartTotals } from '../utils/format';
+import { useResponsiveLayout } from '../utils/responsive';
 
 export function POSScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { width } = useWindowDimensions();
+  const { isLandscapePhone, isPhone, isTablet, width } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
-  const isTablet = width >= 880;
-  const isPhone = width < 600;
-  const numColumns = isTablet ? 3 : isPhone ? 1 : 2;
+  const numColumns = isTablet ? 3 : isLandscapePhone ? 2 : isPhone ? 1 : 2;
   const [lastAdded, setLastAdded] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const products = useCatalogStore((state) => state.products);
@@ -138,14 +137,18 @@ export function POSScreen() {
 
   const catalogHeader = (
     <View>
-      <PricingModeSelector onChange={confirmPricingMode} resellerCount={resellerProductCount} value={pricingMode} />
-      <View style={styles.toolsRow}>
-        <View style={styles.searchWrap}><SearchField onChangeText={setSearch} value={search} /></View>
+      <View style={[styles.catalogControls, isLandscapePhone && styles.catalogControlsLandscape]}>
+        <View style={isLandscapePhone ? styles.pricingWrapLandscape : undefined}>
+          <PricingModeSelector compact={isLandscapePhone} onChange={confirmPricingMode} resellerCount={resellerProductCount} value={pricingMode} />
+        </View>
+        <View style={[styles.toolsRow, isLandscapePhone && styles.toolsRowLandscape]}>
+          <View style={styles.searchWrap}><SearchField onChangeText={setSearch} value={search} /></View>
+        </View>
       </View>
-      <ScrollView contentContainerStyle={styles.categories} horizontal showsHorizontalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.categories, isLandscapePhone && styles.categoriesLandscape]} horizontal showsHorizontalScrollIndicator={false}>
         {categories.map((item) => <Chip key={item} label={item} onPress={() => setCategory(item)} selected={category === item} />)}
       </ScrollView>
-      <View style={styles.listHeading}>
+      <View style={[styles.listHeading, isLandscapePhone && styles.listHeadingLandscape]}>
         <Text style={styles.resultText}>{filteredProducts.length} produk · harga {pricingMode === 'reseller' ? 'reseller' : 'pelanggan'}</Text>
         {lastAdded ? <View style={styles.addedPill}><Sparkles color={palette.success} size={14} /><Text style={styles.addedText}>{lastAdded} ditambahkan</Text></View> : null}
       </View>
@@ -156,7 +159,7 @@ export function POSScreen() {
     <FlatList
       key={`grid-${numColumns}`}
       columnWrapperStyle={numColumns > 1 ? styles.productRow : undefined}
-      contentContainerStyle={[styles.productList, { paddingBottom: isTablet ? spacing.lg : 190 + insets.bottom }]}
+      contentContainerStyle={[styles.productList, { paddingBottom: isTablet ? spacing.lg : isLandscapePhone ? 128 + insets.bottom : 190 + insets.bottom }]}
       data={filteredProducts}
       initialNumToRender={8}
       keyboardShouldPersistTaps="handled"
@@ -184,7 +187,7 @@ export function POSScreen() {
         <>
           <View style={styles.mobileList}>{productList}</View>
           {itemCount > 0 ? (
-            <View style={[styles.floatingWrap, { bottom: 94 + insets.bottom }]}><CartFloatingBar compact={width < 360} count={itemCount} onClear={confirmClearCart} onPress={() => navigation.navigate('Checkout')} pricingMode={pricingMode} total={totals.total} /></View>
+            <View style={[styles.floatingWrap, isLandscapePhone ? styles.floatingWrapLandscape : styles.floatingWrapPortrait, { bottom: (isLandscapePhone ? 68 : 94) + insets.bottom }]}><CartFloatingBar compact={isLandscapePhone || width < 360} count={itemCount} onClear={confirmClearCart} onPress={() => navigation.navigate('Checkout')} pricingMode={pricingMode} total={totals.total} /></View>
           ) : null}
         </>
       )}
@@ -234,10 +237,16 @@ function EmptyCatalog({ search }: { search: string }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, paddingBottom: 0 },
+  catalogControls: { width: '100%' },
+  catalogControlsLandscape: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  pricingWrapLandscape: { width: 310, flexShrink: 0 },
   toolsRow: { flexDirection: 'row', gap: spacing.xs, alignItems: 'center' },
+  toolsRowLandscape: { flex: 1, minWidth: 0 },
   searchWrap: { flex: 1 },
   categories: { gap: spacing.xs, paddingVertical: spacing.md },
+  categoriesLandscape: { paddingVertical: spacing.xxs },
   listHeading: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.xs },
+  listHeadingLandscape: { minHeight: 28 },
   resultText: { color: palette.muted, fontFamily: type.medium, fontSize: 11 },
   addedPill: { minHeight: 30, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: spacing.sm, borderRadius: radius.pill, backgroundColor: palette.successSoft },
   addedText: { color: palette.success, fontFamily: type.bold, fontSize: 10 },
@@ -248,7 +257,9 @@ const styles = StyleSheet.create({
   productRow: { gap: spacing.sm, marginBottom: spacing.sm },
   productCell: { flex: 1, minWidth: 0 },
   productCellPhone: { marginBottom: spacing.sm },
-  floatingWrap: { position: 'absolute', left: 0, right: 0 },
+  floatingWrap: { position: 'absolute' },
+  floatingWrapPortrait: { left: 0, right: 0 },
+  floatingWrapLandscape: { width: '58%', minWidth: 360, maxWidth: 480, right: spacing.xs },
   cartPanel: { flex: 1, maxWidth: 420 },
   cartPanelInner: { flex: 1, padding: spacing.md },
   cartPanelHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: spacing.md },

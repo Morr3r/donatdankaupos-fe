@@ -1,7 +1,7 @@
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { ArrowRight, Banknote, Clock3, PackageOpen, ReceiptText, ShoppingBag, TrendingUp, Users } from 'lucide-react-native';
-import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { BarChart, MetricCard } from '../components/data';
 import { BrandLogo, Button, GlassCard, Header, ScalePressable, Screen, SectionHeader, StatusPill } from '../components/ui';
 import { reportService, type SalesSummary } from '../api/services';
@@ -10,6 +10,7 @@ import { useOperationsStore } from '../store/operationsStore';
 import { useSessionStore } from '../store/sessionStore';
 import { gradients, palette, radius, spacing, type } from '../theme/tokens';
 import { formatClock, formatCompact, formatCurrency, getGreeting, paymentLabels } from '../utils/format';
+import { useResponsiveLayout } from '../utils/responsive';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useCallback, useState } from 'react';
 
@@ -22,7 +23,7 @@ const toDateParam = (value: Date) => {
 
 export function DashboardScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { width } = useWindowDimensions();
+  const { isLandscapePhone, width } = useResponsiveLayout();
   const user = useSessionStore((state) => state.user);
   const shift = useOperationsStore((state) => state.shift);
   const transactions = useOperationsStore((state) => state.transactions);
@@ -55,17 +56,17 @@ export function DashboardScreen() {
         title="Ringkasan hari ini"
       />
 
-      <GlassCard dark style={styles.heroCard} contentStyle={styles.heroContent}>
+      <GlassCard dark style={styles.heroCard} contentStyle={[styles.heroContent, isLandscapePhone && styles.heroContentLandscape]}>
         <LinearGradient colors={gradients.primary} style={StyleSheet.absoluteFill} />
         <View style={[styles.heroOrb, styles.pointerNone]} />
         <View style={styles.heroTop}>
           <StatusPill label="Shift aktif" tone="success" />
           <View style={styles.shiftTime}><Clock3 color={palette.honeySoft} size={15} /><Text style={styles.shiftTimeText}>Sejak {shift ? formatClock(shift.openedAt) : '--:--'}</Text></View>
         </View>
-        <Text style={styles.heroLabel}>Penjualan bersih</Text>
-        <Text adjustsFontSizeToFit numberOfLines={1} style={styles.heroValue}>{formatCurrency(todaySales)}</Text>
+        <Text style={[styles.heroLabel, isLandscapePhone && styles.heroLabelLandscape]}>Penjualan bersih</Text>
+        <Text adjustsFontSizeToFit numberOfLines={1} style={[styles.heroValue, isLandscapePhone && styles.heroValueLandscape]}>{formatCurrency(todaySales)}</Text>
         <Text style={styles.heroHelper}>{todaySummary?.transactionCount ?? 0} transaksi berhasil · rerata {formatCurrency(todaySummary?.averageOrderValue ?? 0)}</Text>
-        <Button icon={ShoppingBag} label="Buat transaksi baru" onPress={() => navigation.navigate('MainTabs', { screen: 'POS' })} style={[styles.heroButton, smallPhone && styles.heroButtonFull]} variant="secondary" />
+        <Button icon={ShoppingBag} label="Buat transaksi baru" onPress={() => navigation.navigate('MainTabs', { screen: 'POS' })} style={[styles.heroButton, isLandscapePhone && styles.heroButtonLandscape, smallPhone && styles.heroButtonFull]} variant="secondary" />
       </GlassCard>
 
       <SectionHeader title="Performa outlet" />
@@ -126,14 +127,18 @@ const styles = StyleSheet.create({
   headerLogo: { alignSelf: 'flex-start' },
   heroCard: { marginTop: spacing.xs },
   heroContent: { padding: spacing.lg, minHeight: 278 },
+  heroContentLandscape: { minHeight: 208, padding: spacing.md },
   heroOrb: { position: 'absolute', width: 170, height: 170, borderRadius: 85, backgroundColor: 'rgba(232,140,164,0.18)', right: -45, top: -65 },
   heroTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   shiftTime: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   shiftTimeText: { color: palette.honeySoft, fontFamily: type.semibold, fontSize: 11 },
   heroLabel: { color: 'rgba(255,255,255,0.68)', fontFamily: type.medium, fontSize: 12, marginTop: spacing.lg },
+  heroLabelLandscape: { marginTop: spacing.sm },
   heroValue: { color: palette.white, fontFamily: type.display, fontSize: 34, marginTop: 3 },
+  heroValueLandscape: { fontSize: 30 },
   heroHelper: { color: 'rgba(255,255,255,0.72)', fontFamily: type.regular, fontSize: 11, marginTop: 3 },
   heroButton: { marginTop: spacing.lg, alignSelf: 'flex-start', minWidth: 208 },
+  heroButtonLandscape: { marginTop: spacing.sm },
   heroButtonFull: { alignSelf: 'stretch', minWidth: 0 },
   metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   metricCell: { minWidth: 0, flexGrow: 1 },

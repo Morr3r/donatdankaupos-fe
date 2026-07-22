@@ -19,10 +19,10 @@ import {
   type StyleProp,
   type ViewStyle,
   View,
-  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { gradients, palette, radius, shadow, spacing, type } from '../theme/tokens';
+import { useResponsiveLayout } from '../utils/responsive';
 import { useReducedMotion } from '../utils/useReducedMotion';
 
 type IconType = ComponentType<LucideProps>;
@@ -58,15 +58,24 @@ interface ScreenProps extends PropsWithChildren {
   bottomInset?: number;
 }
 
-export function Screen({ children, scroll = true, style, contentStyle, bottomInset = 112 }: ScreenProps) {
-  const { width } = useWindowDimensions();
+export function Screen({ children, scroll = true, style, contentStyle, bottomInset }: ScreenProps) {
+  const { isLandscapePhone, isPhone, width } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
-  const gutter = width >= 768 ? spacing.xl : spacing.md;
-  const innerStyle = [styles.screenContent, { paddingHorizontal: gutter, paddingBottom: bottomInset + insets.bottom }, contentStyle];
+  const gutter = isPhone ? spacing.md : width >= 768 ? spacing.xl : spacing.md;
+  const resolvedBottomInset = bottomInset ?? (isLandscapePhone ? 76 : 112);
+  const innerStyle = [
+    styles.screenContent,
+    {
+      paddingHorizontal: gutter,
+      paddingTop: isLandscapePhone ? spacing.xxs : spacing.sm,
+      paddingBottom: resolvedBottomInset + insets.bottom,
+    },
+    contentStyle,
+  ];
 
   return (
     <AppBackground>
-      <SafeAreaView style={[styles.safeArea, style]} edges={['top']}>
+      <SafeAreaView style={[styles.safeArea, style]} edges={['top', 'left', 'right']}>
         <KeyboardAvoidingView
           behavior={process.env.EXPO_OS === 'ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={0}
@@ -100,15 +109,24 @@ interface FormModalProps extends PropsWithChildren {
 }
 
 export function FormModal({ visible, title, subtitle, footer, onClose, children }: FormModalProps) {
+  const insets = useSafeAreaInsets();
+  const { isLandscapePhone } = useResponsiveLayout();
   return (
     <Modal animationType="fade" onRequestClose={onClose} transparent visible={visible}>
       <KeyboardAvoidingView
         behavior={process.env.EXPO_OS === 'ios' ? 'padding' : 'height'}
-        style={styles.modalBackdrop}
+        style={[
+          styles.modalBackdrop,
+          isLandscapePhone && styles.modalBackdropLandscape,
+          {
+            paddingLeft: Math.max(insets.left, isLandscapePhone ? spacing.xs : spacing.md),
+            paddingRight: Math.max(insets.right, isLandscapePhone ? spacing.xs : spacing.md),
+          },
+        ]}
       >
-        <GlassCard style={styles.modalCard} contentStyle={styles.modalSurface}>
+        <GlassCard style={[styles.modalCard, isLandscapePhone && styles.modalCardLandscape]} contentStyle={styles.modalSurface}>
           <ScrollView
-            contentContainerStyle={styles.modalContent}
+            contentContainerStyle={[styles.modalContent, isLandscapePhone && styles.modalContentLandscape]}
             keyboardDismissMode={process.env.EXPO_OS === 'ios' ? 'interactive' : 'on-drag'}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
@@ -122,7 +140,7 @@ export function FormModal({ visible, title, subtitle, footer, onClose, children 
             </View>
             {children}
           </ScrollView>
-          {footer ? <View style={styles.modalFooter}>{footer}</View> : null}
+          {footer ? <View style={[styles.modalFooter, isLandscapePhone && styles.modalFooterLandscape]}>{footer}</View> : null}
         </GlassCard>
       </KeyboardAvoidingView>
     </Modal>
@@ -255,13 +273,14 @@ interface HeaderProps {
 }
 
 export function Header({ eyebrow, brand, title, subtitle, onBack, right }: HeaderProps) {
+  const { isLandscapePhone } = useResponsiveLayout();
   return (
-    <View style={styles.header}>
+    <View style={[styles.header, isLandscapePhone && styles.headerLandscape]}>
       {onBack ? <IconButton icon={ChevronLeft} label="Kembali" onPress={onBack} /> : null}
       <View style={styles.headerCopy}>
         {brand ? <View style={styles.headerBrand}>{brand}</View> : eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
-        <Text accessibilityRole="header" maxFontSizeMultiplier={1.4} style={styles.headerTitle}>{title}</Text>
-        {subtitle ? <Text style={styles.headerSubtitle}>{subtitle}</Text> : null}
+        <Text accessibilityRole="header" maxFontSizeMultiplier={1.4} style={[styles.headerTitle, isLandscapePhone && styles.headerTitleLandscape]}>{title}</Text>
+        {subtitle ? <Text numberOfLines={isLandscapePhone ? 1 : undefined} style={[styles.headerSubtitle, isLandscapePhone && styles.headerSubtitleLandscape]}>{subtitle}</Text> : null}
       </View>
       {right ? <View style={styles.headerRight}>{right}</View> : null}
     </View>
@@ -399,12 +418,15 @@ const styles = StyleSheet.create({
   iconButtonDark: { backgroundColor: palette.cocoaDark, borderColor: 'rgba(255,255,255,0.16)' },
   iconButtonDanger: { backgroundColor: palette.dangerSoft, borderColor: 'rgba(185,62,72,0.16)' },
   header: { flexDirection: 'row', alignItems: 'center', minHeight: 72, gap: spacing.sm, marginBottom: spacing.md },
+  headerLandscape: { minHeight: 52, marginBottom: spacing.xs },
   headerCopy: { flex: 1 },
   headerBrand: { alignItems: 'flex-start', marginBottom: 2 },
   headerRight: { marginLeft: spacing.xs },
   eyebrow: { color: palette.honey, fontFamily: type.bold, fontSize: 11, letterSpacing: 1.3, textTransform: 'uppercase', marginBottom: 2 },
   headerTitle: { color: palette.ink, fontFamily: type.display, fontSize: 28, lineHeight: 34 },
+  headerTitleLandscape: { fontSize: 23, lineHeight: 28 },
   headerSubtitle: { color: palette.muted, fontFamily: type.regular, fontSize: 13, lineHeight: 18, marginTop: 2 },
+  headerSubtitleLandscape: { fontSize: 11, lineHeight: 15 },
   fieldGroup: { gap: spacing.xs },
   fieldLabel: { color: palette.inkSoft, fontFamily: type.semibold, fontSize: 13, marginLeft: 2 },
   field: { minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: 'rgba(255,255,255,0.78)', borderRadius: radius.md, borderWidth: 1, borderColor: palette.line, paddingHorizontal: spacing.md },
@@ -439,12 +461,16 @@ const styles = StyleSheet.create({
   sectionAction: { color: palette.cocoa, fontFamily: type.bold, fontSize: 13 },
   divider: { height: 1, backgroundColor: palette.line },
   modalBackdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.md, backgroundColor: palette.scrim },
+  modalBackdropLandscape: { paddingVertical: spacing.xs },
   modalCard: { width: '100%', maxWidth: 560, maxHeight: '92%', backgroundColor: palette.porcelain },
+  modalCardLandscape: { maxWidth: 760, maxHeight: '100%' },
   modalSurface: { maxHeight: '100%', flexShrink: 1, backgroundColor: palette.porcelain },
   modalContent: { padding: spacing.lg, gap: spacing.md },
+  modalContentLandscape: { padding: spacing.sm, gap: spacing.sm },
   modalHeading: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
   modalCopy: { flex: 1 },
   modalTitle: { color: palette.ink, fontFamily: type.display, fontSize: 24, lineHeight: 30 },
   modalSubtitle: { color: palette.muted, fontFamily: type.regular, fontSize: 11, lineHeight: 17, marginTop: 3 },
   modalFooter: { padding: spacing.md, borderTopWidth: 1, borderTopColor: palette.line, backgroundColor: palette.porcelain },
+  modalFooterLandscape: { padding: spacing.xs },
 });

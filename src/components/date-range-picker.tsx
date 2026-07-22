@@ -2,8 +2,9 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import type { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { createElement, useEffect, useState } from 'react';
-import { Platform, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import { palette, radius, spacing, type } from '../theme/tokens';
+import { useResponsiveLayout } from '../utils/responsive';
 import {
   dateRangeDayCount,
   type DateRangeMode,
@@ -27,7 +28,7 @@ const modes: { id: DateRangeMode; label: string }[] = [
 type PickerTarget = 'anchor' | 'from' | 'to';
 
 export function DateRangePicker({ value, onChange }: { value: DateRangeSelection; onChange: (value: DateRangeSelection) => void }) {
-  const { width } = useWindowDimensions();
+  const { isLandscapePhone, width } = useResponsiveLayout();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(value);
   const [pickerTarget, setPickerTarget] = useState<PickerTarget | null>(null);
@@ -60,11 +61,11 @@ export function DateRangePicker({ value, onChange }: { value: DateRangeSelection
   const canMoveNext = startOfDay(value.to) < today;
   const draftDayCount = dateRangeDayCount(draft);
   const invalidDraft = draftDayCount > 366;
-  const compact = width < 390;
+  const compact = width < 390 || isLandscapePhone;
 
   return (
-    <View style={styles.container}>
-      <View style={styles.modes}>
+    <View style={[styles.container, isLandscapePhone && styles.containerLandscape]}>
+      <View style={[styles.modes, isLandscapePhone && styles.modesLandscape]}>
         {modes.map((mode) => (
           <ScalePressable
             key={mode.id}
@@ -73,13 +74,13 @@ export function DateRangePicker({ value, onChange }: { value: DateRangeSelection
             accessibilityState={{ selected: value.mode === mode.id }}
             containerStyle={styles.modeCell}
             onPress={() => changeMode(mode.id)}
-            style={[styles.modeButton, value.mode === mode.id && styles.modeButtonSelected]}
+            style={[styles.modeButton, isLandscapePhone && styles.modeButtonLandscape, value.mode === mode.id && styles.modeButtonSelected]}
           >
             <Text style={[styles.modeText, value.mode === mode.id && styles.modeTextSelected]}>{mode.label}</Text>
           </ScalePressable>
         ))}
       </View>
-      <GlassCard contentStyle={[styles.periodBar, compact && styles.periodBarCompact]}>
+      <GlassCard style={isLandscapePhone ? styles.periodCardLandscape : undefined} contentStyle={[styles.periodBar, compact && styles.periodBarCompact, isLandscapePhone && styles.periodBarLandscape]}>
         <ScalePressable accessibilityLabel="Periode sebelumnya" onPress={() => movePeriod(-1)} style={[styles.arrowButton, compact && styles.arrowButtonCompact]}>
           <ChevronLeft color={palette.cocoa} size={21} />
         </ScalePressable>
@@ -178,13 +179,18 @@ function DateRow({ label, value, onPress }: { label: string; value: Date; onPres
 
 const styles = StyleSheet.create({
   container: { gap: spacing.sm, marginBottom: spacing.md },
+  containerLandscape: { flexDirection: 'row', alignItems: 'stretch', gap: spacing.xs, marginBottom: 0 },
   modes: { minHeight: 48, flexDirection: 'row', borderRadius: radius.md, borderWidth: 1, borderColor: palette.line, padding: 3, backgroundColor: 'rgba(255,255,255,0.58)' },
+  modesLandscape: { width: 250, minHeight: 52, flexShrink: 0 },
   modeCell: { flex: 1 },
   modeButton: { minHeight: 44, paddingHorizontal: spacing.xs, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
+  modeButtonLandscape: { minHeight: 44, paddingHorizontal: spacing.xxs },
   modeButtonSelected: { backgroundColor: palette.cocoaDark },
   modeText: { color: palette.cocoa, fontFamily: type.semibold, fontSize: 12 },
   modeTextSelected: { color: palette.white },
   periodBar: { minHeight: 74, padding: spacing.xs, flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  periodCardLandscape: { flex: 1, minWidth: 0 },
+  periodBarLandscape: { minHeight: 52 },
   periodBarCompact: { gap: spacing.xxs, padding: spacing.xxs },
   arrowButton: { width: 48, height: 52, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(107,63,42,0.07)' },
   arrowButtonCompact: { width: 44 },
