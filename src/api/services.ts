@@ -74,6 +74,11 @@ export const shiftService = {
     method: 'POST',
     body: { openingBankBalance, openingCash, terminalId },
   }),
+  updateOpeningBalances: (id: string, openingCash: number, openingBankBalance: number) =>
+    apiRequest<Shift>(`/shifts/${id}/opening-balances`, {
+      method: 'PATCH',
+      body: { openingBankBalance, openingCash },
+    }),
   close: (id: string, closingCash: number) => apiRequest<Shift>(`/shifts/${id}/close`, {
     method: 'POST',
     body: { closingCash },

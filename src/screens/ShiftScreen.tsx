@@ -2,7 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Alert, StyleSheet, Text, View } from 'react-native';
-import { Banknote, Clock3, Landmark, LockKeyhole, ReceiptText, ShieldCheck, WalletCards } from 'lucide-react-native';
+import { Banknote, Landmark, LockKeyhole, ReceiptText, Save, ShieldCheck, WalletCards, X } from 'lucide-react-native';
 import { useCallback, useMemo, useState } from 'react';
 import { expenseService } from '../api/services';
 import { Button, Divider, Field, GlassCard, Header, Screen, SectionHeader, StatusPill } from '../components/ui';
@@ -17,19 +17,32 @@ export function ShiftScreen({ navigation }: NativeStackScreenProps<RootStackPara
   const shift = useOperationsStore((state) => state.shift);
   const transactions = useOperationsStore((state) => state.transactions);
   const closeShift = useOperationsStore((state) => state.closeShift);
+  const updateOpeningBalances = useOperationsStore((state) => state.updateOpeningBalances);
   const [actualCash, setActualCash] = useState('');
   const [expenseOverview, setExpenseOverview] = useState<ExpenseOverview | null>(null);
   const [expenseError, setExpenseError] = useState<string | null>(null);
   const [expensesLoaded, setExpensesLoaded] = useState(false);
+  const [editingOpeningBalances, setEditingOpeningBalances] = useState(false);
+  const [openingCashInput, setOpeningCashInput] = useState('');
+  const [openingBankBalanceInput, setOpeningBankBalanceInput] = useState('');
+  const [openingCashError, setOpeningCashError] = useState<string | null>(null);
+  const [openingBankBalanceError, setOpeningBankBalanceError] = useState<string | null>(null);
+  const [openingBalanceError, setOpeningBalanceError] = useState<string | null>(null);
+  const [savingOpeningBalances, setSavingOpeningBalances] = useState(false);
   const shiftTransactions = useMemo(() => transactions.filter((item) => item.shiftId === shift?.id), [shift?.id, transactions]);
   const cashSales = useMemo(() => shiftTransactions.filter((item) => item.status === 'paid' && item.paymentMethod === 'cash').reduce((sum, item) => sum + item.total, 0), [shiftTransactions]);
   const nonCashSales = useMemo(() => shiftTransactions.filter((item) => item.status === 'paid' && item.paymentMethod !== 'cash').reduce((sum, item) => sum + item.total, 0), [shiftTransactions]);
   const cashExpenses = expenseOverview?.cashExpenses ?? 0;
   const bankExpenses = expenseOverview?.bankExpenses ?? 0;
-  const expectedCash = expenseOverview?.cashBalance ?? ((shift?.openingCash ?? 0) + cashSales - cashExpenses);
-  const expectedBankBalance = expenseOverview?.bankBalance ?? ((shift?.openingBankBalance ?? 0) - bankExpenses);
+  const expectedCash = (shift?.openingCash ?? 0) + cashSales - cashExpenses;
+  const expectedBankBalance = (shift?.openingBankBalance ?? 0) - bankExpenses;
   const actual = parseNumericInput(actualCash);
   const difference = actual - expectedCash;
+  const editedOpeningCash = parseNumericInput(openingCashInput);
+  const editedOpeningBankBalance = parseNumericInput(openingBankBalanceInput);
+  const openingBalancesChanged = shift ? (
+    editedOpeningCash !== shift.openingCash || editedOpeningBankBalance !== shift.openingBankBalance
+  ) : false;
 
   useFocusEffect(useCallback(() => {
     let active = true;
@@ -46,6 +59,50 @@ export function ShiftScreen({ navigation }: NativeStackScreenProps<RootStackPara
       .finally(() => { if (active) setExpensesLoaded(true); });
     return () => { active = false; };
   }, [shift?.id]));
+
+  const beginOpeningBalanceEdit = () => {
+    if (!shift || shift.status !== 'open') return;
+    setOpeningCashInput(formatNumericInput(shift.openingCash));
+    setOpeningBankBalanceInput(formatNumericInput(shift.openingBankBalance));
+    setOpeningCashError(null);
+    setOpeningBankBalanceError(null);
+    setOpeningBalanceError(null);
+    setEditingOpeningBalances(true);
+  };
+
+  const cancelOpeningBalanceEdit = () => {
+    setEditingOpeningBalances(false);
+    setOpeningCashError(null);
+    setOpeningBankBalanceError(null);
+    setOpeningBalanceError(null);
+  };
+
+  const handleOpeningBalanceSave = async () => {
+    if (!shift || shift.status !== 'open') return;
+    const nextCashError = openingCashInput.trim() ? null : 'Uang fisik awal wajib diisi. Masukkan 0 jika kosong.';
+    const nextBankError = openingBankBalanceInput.trim() ? null : 'Saldo rekening kas wajib diisi. Masukkan 0 jika kosong.';
+    setOpeningCashError(nextCashError);
+    setOpeningBankBalanceError(nextBankError);
+    setOpeningBalanceError(null);
+    if (nextCashError || nextBankError || !openingBalancesChanged) return;
+
+    setSavingOpeningBalances(true);
+    try {
+      const updatedShift = await updateOpeningBalances(editedOpeningCash, editedOpeningBankBalance);
+      setEditingOpeningBalances(false);
+      setExpenseError(null);
+      try {
+        setExpenseOverview(await expenseService.list(updatedShift.id));
+      } catch (loadError) {
+        setExpenseError(loadError instanceof Error ? loadError.message : 'Saldo pengeluaran tidak dapat dimuat ulang.');
+      }
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (updateError) {
+      setOpeningBalanceError(updateError instanceof Error ? updateError.message : 'Saldo awal shift tidak dapat diubah.');
+    } finally {
+      setSavingOpeningBalances(false);
+    }
+  };
 
   const handleClose = () => {
     if (!shift || shift.status !== 'open') return;
@@ -89,8 +146,66 @@ export function ShiftScreen({ navigation }: NativeStackScreenProps<RootStackPara
         <GlassCard style={styles.metric} contentStyle={styles.metricInner}><ReceiptText color={palette.rose} size={22} /><Text style={styles.metricLabel}>Non-tunai</Text><Text adjustsFontSizeToFit numberOfLines={1} style={styles.metricValue}>{formatCurrency(nonCashSales)}</Text></GlassCard>
       </View>
 
-      <SectionHeader title="Rekonsiliasi kas" />
+      <SectionHeader
+        actionLabel={shift.status === 'open' && !editingOpeningBalances ? 'Ubah saldo awal' : undefined}
+        onAction={beginOpeningBalanceEdit}
+        title="Rekonsiliasi kas"
+      />
       <GlassCard contentStyle={styles.reconcileCard}>
+        {editingOpeningBalances ? (
+          <View style={styles.balanceEditor}>
+            <View>
+              <Text style={styles.balanceEditorTitle}>Ubah saldo awal shift</Text>
+              <Text style={styles.balanceEditorSubtitle}>Koreksi nominal yang dimasukkan saat membuka shift.</Text>
+            </View>
+            <Field
+              error={openingCashError}
+              keyboardType="number-pad"
+              label="Uang fisik awal"
+              leftIcon={Banknote}
+              onChangeText={(value) => {
+                setOpeningCashInput(formatNumericInput(value));
+                setOpeningCashError(null);
+                setOpeningBalanceError(null);
+              }}
+              placeholder="0"
+              selectTextOnFocus
+              value={openingCashInput}
+            />
+            <Text style={styles.balancePreview}>{formatCurrency(editedOpeningCash)}</Text>
+            <Field
+              error={openingBankBalanceError}
+              keyboardType="number-pad"
+              label="Saldo rekening kas awal"
+              leftIcon={Landmark}
+              onChangeText={(value) => {
+                setOpeningBankBalanceInput(formatNumericInput(value));
+                setOpeningBankBalanceError(null);
+                setOpeningBalanceError(null);
+              }}
+              placeholder="0"
+              selectTextOnFocus
+              value={openingBankBalanceInput}
+            />
+            <Text style={styles.balancePreview}>{formatCurrency(editedOpeningBankBalance)}</Text>
+            <Text style={styles.balanceEditorHelper}>Perubahan akan langsung memperbarui saldo pengeluaran dan perhitungan penutupan shift.</Text>
+            {openingBalanceError ? <Text accessibilityLiveRegion="assertive" style={styles.balanceEditorError}>{openingBalanceError}</Text> : null}
+            <View style={styles.balanceEditorActions}>
+              <View style={styles.balanceEditorButton}><Button compact icon={X} label="Batal" onPress={cancelOpeningBalanceEdit} variant="secondary" /></View>
+              <View style={styles.balanceEditorButton}>
+                <Button
+                  compact
+                  disabled={!openingBalancesChanged || !openingCashInput.trim() || !openingBankBalanceInput.trim()}
+                  icon={Save}
+                  label="Simpan perubahan"
+                  loading={savingOpeningBalances}
+                  onPress={handleOpeningBalanceSave}
+                />
+              </View>
+            </View>
+            <Divider />
+          </View>
+        ) : null}
         <ReconcileRow icon={<Banknote color={palette.honey} size={17} />} label="Uang fisik awal" value={formatCurrency(shift.openingCash)} />
         <ReconcileRow label="Penjualan tunai" value={formatCurrency(cashSales)} />
         <ReconcileRow label="Pengeluaran dari fisik" value={`− ${formatCurrency(cashExpenses)}`} />
@@ -110,7 +225,7 @@ export function ShiftScreen({ navigation }: NativeStackScreenProps<RootStackPara
       {expenseError ? <Text accessibilityLiveRegion="assertive" style={styles.expenseError}>{expenseError}</Text> : null}
 
       <View style={styles.auditNote}><ShieldCheck color={palette.success} size={18} /><Text style={styles.auditText}>Setiap perubahan shift tersimpan bersama petugas, perangkat, dan waktu kejadian.</Text></View>
-      {shift.status === 'open' ? <Button icon={LockKeyhole} label="Tutup shift" onPress={handleClose} variant="danger" /> : null}
+      {shift.status === 'open' ? <Button disabled={editingOpeningBalances || savingOpeningBalances} icon={LockKeyhole} label="Tutup shift" onPress={handleClose} variant="danger" /> : null}
     </Screen>
   );
 }
@@ -139,6 +254,14 @@ const styles = StyleSheet.create({
   reconcileValue: { color: palette.ink, fontFamily: type.semibold, fontSize: 12 },
   reconcileEmphasis: { color: palette.ink, fontFamily: type.bold },
   reconcileValueEmphasis: { color: palette.cocoa, fontFamily: type.bold, fontSize: 17 },
+  balanceEditor: { gap: spacing.sm },
+  balanceEditorTitle: { color: palette.ink, fontFamily: type.bold, fontSize: 15 },
+  balanceEditorSubtitle: { color: palette.muted, fontFamily: type.regular, fontSize: 11, lineHeight: 16, marginTop: 3 },
+  balancePreview: { color: palette.cocoa, fontFamily: type.bold, fontSize: 13, marginTop: -spacing.xs, textAlign: 'right' },
+  balanceEditorHelper: { color: palette.muted, fontFamily: type.regular, fontSize: 10, lineHeight: 15 },
+  balanceEditorError: { color: palette.danger, fontFamily: type.medium, fontSize: 11, lineHeight: 16 },
+  balanceEditorActions: { flexDirection: 'row', gap: spacing.sm },
+  balanceEditorButton: { flex: 1 },
   difference: { minHeight: 52, borderRadius: radius.md, paddingHorizontal: spacing.md, backgroundColor: palette.successSoft, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   differenceWarning: { backgroundColor: palette.honeySoft },
   differenceLabel: { color: palette.success, fontFamily: type.semibold, fontSize: 12 },

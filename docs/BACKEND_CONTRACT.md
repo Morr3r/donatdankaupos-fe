@@ -40,6 +40,7 @@ Tambahkan `POST /auth/refresh`, `POST /auth/logout`, dan `GET /me`. Role: `cashi
 | GET | `/products?active=true&outlet_id=...` | Katalog, harga, kategori, dan stok outlet |
 | POST | `/shifts` | Buka shift dengan `opening_cash` dan terminal |
 | GET | `/shifts/current` | Pulihkan shift aktif perangkat/user |
+| PATCH | `/shifts/{id}/opening-balances` | Ubah uang fisik awal dan saldo rekening kas pada shift aktif |
 | POST | `/shifts/{id}/close` | Tutup shift dan rekonsiliasi |
 | POST | `/sales` | Buat transaksi atomik |
 | GET | `/sales` | Filter tanggal, status, metode bayar, query, cursor |

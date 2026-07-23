@@ -58,8 +58,8 @@ export function OrdersScreen() {
     refresh().catch(() => undefined);
   }, [refresh]));
 
-  return (
-    <Screen contentStyle={styles.screen} scroll={false}>
+  const listHeader = (
+    <View style={styles.listHeader}>
       <Header eyebrow="Penjualan" subtitle="Telusuri pembayaran dan refund berdasarkan tanggal" title="Transaksi" />
       <View style={[styles.summaryPeriod, isLandscapePhone && styles.summaryPeriodLandscape]}>
         <GlassCard style={isLandscapePhone ? styles.summaryShellLandscape : undefined} contentStyle={[styles.summaryCard, isLandscapePhone && styles.summaryCardLandscape]}>
@@ -69,41 +69,61 @@ export function OrdersScreen() {
         <View style={isLandscapePhone ? styles.periodLandscape : undefined}><DateRangePicker onChange={setRange} value={range} /></View>
       </View>
       <View style={[styles.searchFilters, isLandscapePhone && styles.searchFiltersLandscape]}>
-        <View style={styles.searchWrap}><SearchField onChangeText={setSearch} placeholder="No. struk atau pelanggan" value={search} /></View>
+        <View style={[styles.searchWrap, isLandscapePhone && styles.searchWrapLandscape]}><SearchField onChangeText={setSearch} placeholder="No. struk atau pelanggan" value={search} /></View>
         <View style={[styles.filterRow, isLandscapePhone && styles.filterRowLandscape]}>{filters.map((item) => <Chip key={item.id} label={item.label} onPress={() => setFilter(item.id)} selected={filter === item.id} />)}</View>
       </View>
       {error ? <View style={styles.errorPanel}><Text accessibilityLiveRegion="polite" style={styles.errorText}>{error}</Text><Button compact icon={RefreshCw} label="Coba lagi" onPress={() => refresh().catch(() => undefined)} variant="secondary" /></View> : null}
+      {!isWide ? (
+        <View style={styles.sectionHeading}>
+          <Text accessibilityRole="header" style={styles.sectionTitle}>Daftar transaksi</Text>
+          <Text style={styles.sectionCount}>{filtered.length} transaksi</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+
+  return (
+    <Screen contentStyle={styles.screen} scroll={false}>
       {isWide ? (
-        <GlassCard style={styles.tableCard} contentStyle={styles.tableSurface}>
-          <SalesTableHeader />
-          <FlatList
-            contentContainerStyle={styles.tableList}
-            data={filtered}
-            keyExtractor={(item) => item.id}
-            ListEmptyComponent={<EmptyTransactions />}
-            onRefresh={() => refresh().catch(() => undefined)}
-            refreshing={refreshing}
-            renderItem={({ item }) => <SalesTableRow item={item} onPress={() => navigation.navigate('OrderDetail', { transactionId: item.id })} />}
-            showsVerticalScrollIndicator={false}
-          />
-        </GlassCard>
+        <>
+          {listHeader}
+          <GlassCard style={styles.tableCard} contentStyle={styles.tableSurface}>
+            <SalesTableHeader />
+            <FlatList
+              contentContainerStyle={styles.tableList}
+              data={filtered}
+              keyExtractor={(item) => item.id}
+              ListEmptyComponent={<EmptyTransactions />}
+              onRefresh={() => refresh().catch(() => undefined)}
+              refreshing={refreshing}
+              renderItem={({ item }) => <SalesTableRow item={item} onPress={() => navigation.navigate('OrderDetail', { transactionId: item.id })} />}
+              showsVerticalScrollIndicator={false}
+            />
+          </GlassCard>
+        </>
       ) : (
         <FlatList
           contentContainerStyle={styles.list}
           data={filtered}
+          keyboardDismissMode={process.env.EXPO_OS === 'ios' ? 'interactive' : 'on-drag'}
+          keyboardShouldPersistTaps="handled"
           keyExtractor={(item) => item.id}
+          ListHeaderComponent={listHeader}
           ListEmptyComponent={<EmptyTransactions />}
           renderItem={({ item }) => (
             <ScalePressable accessibilityLabel={`Buka transaksi ${item.receiptNo}`} onPress={() => navigation.navigate('OrderDetail', { transactionId: item.id })}>
               <GlassCard style={styles.transactionCard} contentStyle={styles.transactionInner}>
                 <View style={styles.transactionTop}>
                   <View style={styles.transactionIcon}><ReceiptText color={palette.cocoa} size={20} /></View>
-                  <View style={styles.transactionCopy}><Text style={styles.receiptNo}>{item.receiptNo}</Text><Text style={styles.transactionDate}>{formatDateTime(item.createdAt)}</Text></View>
+                  <View style={styles.transactionCopy}><Text numberOfLines={1} style={styles.receiptNo}>{item.receiptNo}</Text><Text style={styles.transactionDate}>{formatDateTime(item.createdAt)}</Text></View>
                   <StatusPill label={item.status === 'paid' ? 'Berhasil' : 'Refund'} tone={item.status === 'paid' ? 'success' : 'danger'} />
                 </View>
                 <View style={styles.transactionBottom}>
                   <View style={styles.transactionMeta}><Text style={styles.metaLabel}>{item.itemCount} item · {paymentLabels[item.paymentMethod]}</Text><Text numberOfLines={1} style={styles.customer}>{item.customerName ?? 'Pelanggan umum'}</Text></View>
-                  <View style={styles.amountWrap}><Text style={styles.amount}>{formatCurrency(item.total)}</Text><Text style={[styles.profitAmount, item.status === 'refunded' && styles.refundedProfit]}>Profit {formatCurrency(item.netProfit)}</Text><ArrowUpRight color={palette.muted} size={17} /></View>
+                  <View style={styles.amountSection}>
+                    <View style={styles.amountWrap}><Text style={styles.amount}>{formatCurrency(item.total)}</Text><Text style={[styles.profitAmount, item.status === 'refunded' && styles.refundedProfit]}>Profit {formatCurrency(item.netProfit)}</Text></View>
+                    <View style={styles.openIcon}><ArrowUpRight color={palette.muted} size={17} /></View>
+                  </View>
                 </View>
               </GlassCard>
             </ScalePressable>
@@ -111,6 +131,7 @@ export function OrdersScreen() {
           refreshing={refreshing}
           onRefresh={() => refresh().catch(() => undefined)}
           showsVerticalScrollIndicator={false}
+          style={styles.mobileList}
         />
       )}
     </Screen>
@@ -153,6 +174,8 @@ function SalesTableRow({ item, onPress }: { item: Transaction; onPress: () => vo
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  mobileList: { flex: 1, minHeight: 0 },
+  listHeader: { width: '100%' },
   summaryPeriod: { width: '100%' },
   summaryPeriodLandscape: { flexDirection: 'row', alignItems: 'stretch', gap: spacing.xs, marginBottom: spacing.xs },
   summaryShellLandscape: { width: 250, minWidth: 250, maxWidth: 250, flexShrink: 0 },
@@ -166,30 +189,36 @@ const styles = StyleSheet.create({
   summaryCountText: { color: palette.cocoa, fontFamily: type.bold, fontSize: 11 },
   searchFilters: { width: '100%' },
   searchFiltersLandscape: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.xs },
-  searchWrap: { flex: 1, minWidth: 0 },
-  filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, paddingVertical: spacing.md },
+  searchWrap: { minWidth: 0 },
+  searchWrapLandscape: { flex: 1 },
+  filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, paddingTop: spacing.sm, paddingBottom: spacing.md },
   filterRowLandscape: { flexWrap: 'nowrap', paddingVertical: 0 },
   errorPanel: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderRadius: radius.md, padding: spacing.sm, marginBottom: spacing.sm, backgroundColor: palette.dangerSoft },
   errorText: { flex: 1, color: palette.danger, fontFamily: type.medium, fontSize: 11, lineHeight: 17 },
+  sectionHeading: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
+  sectionTitle: { flex: 1, color: palette.ink, fontFamily: type.bold, fontSize: 16, lineHeight: 22 },
+  sectionCount: { color: palette.muted, fontFamily: type.medium, fontSize: 11 },
   list: { gap: spacing.sm, paddingBottom: 120 },
-  transactionCard: { marginBottom: spacing.sm },
+  transactionCard: { width: '100%' },
   transactionInner: { padding: spacing.md },
   transactionTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   transactionIcon: { width: 44, height: 44, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.roseSoft },
-  transactionCopy: { flex: 1 },
+  transactionCopy: { flex: 1, minWidth: 0 },
   receiptNo: { color: palette.ink, fontFamily: type.bold, fontSize: 13 },
   transactionDate: { color: palette.muted, fontFamily: type.regular, fontSize: 10, marginTop: 3 },
   transactionBottom: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: spacing.md, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: palette.line },
   transactionMeta: { flex: 1, minWidth: 0, paddingRight: spacing.sm },
   metaLabel: { color: palette.muted, fontFamily: type.medium, fontSize: 10 },
   customer: { color: palette.inkSoft, fontFamily: type.semibold, fontSize: 12, marginTop: 3 },
+  amountSection: { flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   amountWrap: { alignItems: 'flex-end', gap: 3 },
   amount: { color: palette.cocoa, fontFamily: type.bold, fontSize: 15 },
   profitAmount: { color: palette.success, fontFamily: type.semibold, fontSize: 9 },
   refundedProfit: { color: palette.muted },
-  empty: { minHeight: 360, alignItems: 'center', justifyContent: 'center' },
+  openIcon: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm, backgroundColor: 'rgba(107,63,42,0.06)' },
+  empty: { minHeight: 280, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.md },
   emptyTitle: { color: palette.ink, fontFamily: type.bold, fontSize: 15, marginTop: spacing.md },
-  emptyText: { color: palette.muted, fontFamily: type.regular, fontSize: 11, marginTop: spacing.xs },
+  emptyText: { color: palette.muted, fontFamily: type.regular, fontSize: 11, lineHeight: 17, marginTop: spacing.xs, textAlign: 'center' },
   tableCard: { flex: 1, minHeight: 360 },
   tableSurface: { flex: 1 },
   tableList: { flexGrow: 1 },

@@ -12,6 +12,7 @@ interface OperationsState {
   refreshShift: () => Promise<Shift | null>;
   refreshTransactions: () => Promise<void>;
   openShift: (openingCash: number, openingBankBalance: number, terminalId: string) => Promise<Shift>;
+  updateOpeningBalances: (openingCash: number, openingBankBalance: number) => Promise<Shift>;
   closeShift: (closingCash: number) => Promise<Shift>;
   addTransaction: (transaction: Transaction) => void;
   refundTransaction: (id: string, reason: string, managerPin?: string) => Promise<Transaction>;
@@ -51,6 +52,13 @@ export const useOperationsStore = create<OperationsState>((set, get) => ({
   },
   openShift: async (openingCash, openingBankBalance, terminalId) => {
     const shift = await shiftService.open(openingCash, openingBankBalance, terminalId);
+    set({ shift });
+    return shift;
+  },
+  updateOpeningBalances: async (openingCash, openingBankBalance) => {
+    const current = get().shift;
+    if (!current || current.status !== 'open') throw new Error('Shift aktif tidak ditemukan.');
+    const shift = await shiftService.updateOpeningBalances(current.id, openingCash, openingBankBalance);
     set({ shift });
     return shift;
   },

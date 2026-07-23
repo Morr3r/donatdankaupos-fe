@@ -42,7 +42,9 @@
   },
   "scripts": {
     "start": "expo start",
+    "preandroid": "cross-env NODE_ENV=development expo prebuild --platform android --no-install",
     "android": "cross-env NODE_ENV=development expo run:android",
+    "preandroid:release": "cross-env NODE_ENV=production expo prebuild --platform android --no-install",
     "android:release": "cross-env NODE_ENV=production expo run:android --variant release",
     "ios": "expo run:ios",
     "web": "expo start --web",
