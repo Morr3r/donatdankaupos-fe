@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Check, Home, ReceiptText, Share2, ShoppingBag } from 'lucide-react-native';
+import { Check, Home, Printer, ReceiptText, Share2, ShoppingBag } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Platform, StyleSheet, Text, View } from 'react-native';
 import ViewShot, { type ViewShotRef } from 'react-native-view-shot';
@@ -12,6 +12,7 @@ import { selectedOptionSummary } from '../utils/cartOptions';
 import { formatCurrency, formatDateTime, orderTypeLabels, paymentLabels, pricingModeLabels } from '../utils/format';
 import { LinearGradient } from 'expo-linear-gradient';
 import { shareInvoiceImage } from '../utils/share-invoice';
+import { useThermalInvoicePrinter } from '../utils/useThermalInvoicePrinter';
 import { useReducedMotion } from '../utils/useReducedMotion';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PaymentSuccess'>;
@@ -24,6 +25,7 @@ export function PaymentSuccessScreen({ navigation, route }: Props) {
   const [sharingReceipt, setSharingReceipt] = useState(false);
   const [shareFeedback, setShareFeedback] = useState<{ message: string; tone: 'success' | 'danger' } | null>(null);
   const reducedMotion = useReducedMotion();
+  const { printFeedback, printInvoice, printingInvoice } = useThermalInvoicePrinter(transaction);
 
   useEffect(() => {
     checkScale.stopAnimation();
@@ -164,6 +166,15 @@ export function PaymentSuccessScreen({ navigation, route }: Props) {
 
       <View style={styles.actions}>
         <Button icon={ShoppingBag} label="Transaksi baru" onPress={newSale} />
+        <Button icon={Printer} label="Cetak invoice (2 salinan)" loading={printingInvoice} onPress={printInvoice} variant="secondary" />
+        {printFeedback ? (
+          <Text
+            accessibilityLiveRegion="polite"
+            style={[styles.shareFeedback, printFeedback.tone === 'success' ? styles.shareFeedbackSuccess : styles.shareFeedbackDanger]}
+          >
+            {printFeedback.message}
+          </Text>
+        ) : null}
         <Button icon={Share2} label="Bagikan invoice (JPG)" loading={sharingReceipt} onPress={shareReceipt} variant="secondary" />
         {shareFeedback ? (
           <Text

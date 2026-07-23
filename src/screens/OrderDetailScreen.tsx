@@ -2,7 +2,7 @@ import * as Haptics from 'expo-haptics';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useRef, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
-import { RotateCcw, Share2, ShieldAlert } from 'lucide-react-native';
+import { Printer, RotateCcw, Share2, ShieldAlert } from 'lucide-react-native';
 import ViewShot, { type ViewShotRef } from 'react-native-view-shot';
 import { saleService } from '../api/services';
 import { BcaTransferDetails } from '../components/bca-transfer-details';
@@ -14,6 +14,7 @@ import { palette, radius, spacing, type } from '../theme/tokens';
 import { selectedOptionSummary } from '../utils/cartOptions';
 import { formatCurrency, formatDateTime, orderTypeLabels, paymentLabels, pricingModeLabels } from '../utils/format';
 import { shareInvoiceImage } from '../utils/share-invoice';
+import { useThermalInvoicePrinter } from '../utils/useThermalInvoicePrinter';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetail'>;
 
@@ -32,6 +33,7 @@ export function OrderDetailScreen({ navigation, route }: Props) {
   const [sharingInvoice, setSharingInvoice] = useState(false);
   const [shareFeedback, setShareFeedback] = useState<{ message: string; tone: 'success' | 'danger' } | null>(null);
   const transaction = cachedTransaction ?? loadedTransaction;
+  const { printFeedback, printInvoice, printingInvoice } = useThermalInvoicePrinter(transaction);
 
   useEffect(() => {
     if (cachedTransaction) {
@@ -149,6 +151,15 @@ export function OrderDetailScreen({ navigation, route }: Props) {
       </GlassCard>
 
       <View style={styles.actions}>
+        <Button icon={Printer} label="Cetak invoice (2 salinan)" loading={printingInvoice} onPress={printInvoice} variant="secondary" />
+        {printFeedback ? (
+          <Text
+            accessibilityLiveRegion="polite"
+            style={[styles.shareFeedback, printFeedback.tone === 'success' ? styles.shareFeedbackSuccess : styles.shareFeedbackDanger]}
+          >
+            {printFeedback.message}
+          </Text>
+        ) : null}
         <Button icon={Share2} label="Bagikan invoice (JPG)" loading={sharingInvoice} onPress={shareInvoice} variant="secondary" />
         {transaction.status === 'paid' ? <Button icon={RotateCcw} label="Refund transaksi" onPress={() => { setRefundOpen(true); setRefundError(null); }} variant="danger" /> : null}
         {shareFeedback ? (
