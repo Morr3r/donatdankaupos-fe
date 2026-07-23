@@ -4,6 +4,7 @@ const DEFINITION_MARKER = '// @generated donatdankau short CMake path definition
 const CONFIG_MARKER = '// @generated donatdankau short CMake path config';
 const NODE_ENV_MARKER = '// @generated donatdankau Gradle NODE_ENV fallback';
 const JOB_POOL_MARKER = '// @generated donatdankau limited CMake job pool';
+const ABI_SPLITS_MARKER = '// @generated donatdankau ABI splits';
 
 function addShortCmakePath(buildGradle) {
   let contents = buildGradle;
@@ -47,6 +48,31 @@ function addShortCmakePath(buildGradle) {
         '        cmake {\n' +
         '            // Keep generated Ninja paths short enough for Windows builds.\n' +
         '            buildStagingDirectory nativeBuildStagingDir\n' +
+        '        }\n' +
+        '    }\n'
+    );
+  }
+
+  if (
+    !contents.includes(ABI_SPLITS_MARKER) &&
+    !contents.includes('include "armeabi-v7a", "arm64-v8a", "x86", "x86_64"')
+  ) {
+    const androidBlock = /android\s*\{\r?\n/;
+
+    if (!androidBlock.test(contents)) {
+      throw new Error('Could not find the android block in android/app/build.gradle');
+    }
+
+    contents = contents.replace(
+      androidBlock,
+      (match) =>
+        `${match}    ${ABI_SPLITS_MARKER}\n` +
+        '    splits {\n' +
+        '        abi {\n' +
+        '            enable true\n' +
+        '            reset()\n' +
+        '            include "armeabi-v7a", "arm64-v8a", "x86", "x86_64"\n' +
+        '            universalApk false\n' +
         '        }\n' +
         '    }\n'
     );
