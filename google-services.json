@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "698311718004",
+    "project_id": "donatdankau-pos-ba2260fc",
+    "storage_bucket": "donatdankau-pos-ba2260fc.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:698311718004:android:43fade6553bd08fdd58d21",
+        "android_client_info": {
+          "package_name": "id.donatdankau.pos"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB9WaPAVkVEvODy8L3Y1tVV0B5nOzQ9-gI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

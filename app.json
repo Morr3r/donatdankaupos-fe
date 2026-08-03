@@ -34,6 +34,7 @@
     },
     "android": {
       "package": "id.donatdankau.pos",
+      "googleServicesFile": "./google-services.json",
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#FFF9F2",
