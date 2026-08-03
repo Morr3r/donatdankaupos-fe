@@ -22,7 +22,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/android-icon-monochrome.png",
+          "icon": "./assets/donat-dankau-notification.png",
           "color": "#E88CA4",
           "defaultChannel": "operations"
         }
