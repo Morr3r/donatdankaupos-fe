@@ -19,6 +19,7 @@ import { useOperationsStore } from './src/store/operationsStore';
 import { usePOSStore } from './src/store/posStore';
 import { useSessionStore } from './src/store/sessionStore';
 import { toJakartaDateKey } from './src/utils/date';
+import { NotificationBridge } from './src/components/notifications';
 
 export default function App() {
   const [fontsLoaded] = useFonts({ Manrope_400Regular, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, PlayfairDisplay_600SemiBold, PlayfairDisplay_700Bold });
@@ -103,6 +104,7 @@ export default function App() {
           >
             {appContent}
           </View>
+          <NotificationBridge enabled={introComplete && status === 'authenticated'} />
           {!introComplete ? <SplashScreen appReady={ready} onComplete={finishIntro} /> : null}
         </View>
       </SafeAreaProvider>

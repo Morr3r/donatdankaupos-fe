@@ -106,7 +106,6 @@ export function ProductEditorScreen({ navigation, route }: Props) {
       price: numericPrice,
       resellerPrice: numericResellerPrice,
       isResellerOnly,
-      stock: null,
       trackInventory: false,
       inventoryItemId,
       minimumOrderQuantity: numericMinimumOrderQuantity,

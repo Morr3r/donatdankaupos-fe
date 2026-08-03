@@ -19,11 +19,13 @@ import { ExpensesScreen } from '../screens/ExpensesScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { ProductManagementScreen } from '../screens/ProductManagementScreen';
 import { ProductEditorScreen } from '../screens/ProductEditorScreen';
+import { NotificationsScreen } from '../screens/NotificationsScreen';
 import { palette, radius, shadow, type } from '../theme/tokens';
 import { useReducedMotion } from '../utils/useReducedMotion';
 import { useResponsiveLayout } from '../utils/responsive';
 import { SwipeableTabScene } from './SwipeableTabScene';
 import type { MainTabParamList, RootStackParamList } from './types';
+import { flushPendingNotificationNavigation, navigationRef } from './notificationNavigation';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -55,6 +57,7 @@ const linking: LinkingOptions<RootStackParamList> = {
       Shift: 'shift',
       Expenses: 'expenses',
       Settings: 'settings',
+      Notifications: 'notifications',
     },
   },
 };
@@ -168,7 +171,12 @@ function MainTabs() {
 
 export function AppNavigator() {
   return (
-    <NavigationContainer linking={linking} theme={navigationTheme}>
+    <NavigationContainer
+      linking={linking}
+      onReady={flushPendingNotificationNavigation}
+      ref={navigationRef}
+      theme={navigationTheme}
+    >
       <Stack.Navigator screenOptions={{ animation: 'slide_from_right', contentStyle: { backgroundColor: palette.cream }, headerShown: false }}>
         <Stack.Screen component={MainTabs} name="MainTabs" />
         <Stack.Screen component={CheckoutScreen} name="Checkout" options={{ gestureEnabled: true }} />
@@ -180,6 +188,7 @@ export function AppNavigator() {
         <Stack.Screen component={SettingsScreen} name="Settings" />
         <Stack.Screen component={ProductManagementScreen} name="Products" />
         <Stack.Screen component={ProductEditorScreen} name="ProductEditor" />
+        <Stack.Screen component={NotificationsScreen} name="Notifications" />
       </Stack.Navigator>
     </NavigationContainer>
   );

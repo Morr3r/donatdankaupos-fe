@@ -9,6 +9,8 @@ import type {
   InventoryItem,
   ExpenseOverview,
   ExpenseFundingSource,
+  NotificationFeed,
+  PushTestResult,
 } from '../types/domain';
 import { apiFileRequest, apiRequest } from './client';
 
@@ -30,7 +32,7 @@ export interface ProductInput {
   price: number;
   resellerPrice?: number | null;
   isResellerOnly?: boolean;
-  stock: number | null;
+  stock?: number | null;
   trackInventory: boolean;
   lowStockThreshold?: number;
   minimumOrderQuantity?: number;
@@ -106,6 +108,25 @@ export const inventoryService = {
       method: 'POST',
       body: { inventoryItemId, quantity, reason, mode },
     }),
+};
+
+export const notificationService = {
+  list: (kind?: 'sale_created' | 'stock_adjusted') => apiRequest<NotificationFeed>(
+    `/notifications?limit=100${kind ? `&kind=${encodeURIComponent(kind)}` : ''}`,
+  ),
+  read: (id: string) => apiRequest<NotificationFeed['items'][number]>(`/notifications/${id}/read`, {
+    method: 'POST',
+  }),
+  readAll: () => apiRequest<{ updatedCount: number; unreadCount: number }>('/notifications/read-all', {
+    method: 'POST',
+  }),
+  registerDevice: (payload: { expoPushToken: string; platform: 'android' | 'ios'; deviceName?: string | null }) =>
+    apiRequest<{ id: string; isActive: boolean }>('/notification-devices', { method: 'POST', body: payload }),
+  unregisterDevice: (expoPushToken: string) => apiRequest<void>('/notification-devices/unregister', {
+    method: 'POST',
+    body: { expoPushToken },
+  }),
+  testPush: () => apiRequest<PushTestResult>('/notification-devices/test', { method: 'POST' }),
 };
 
 export const promotionService = {

@@ -26,7 +26,7 @@ const inventoryColors: Record<string, { background: string; accent: string }> = 
 export function InventoryScreen({ navigation }: NativeStackScreenProps<RootStackParamList, 'Inventory'>) {
   const { isLandscapePhone } = useResponsiveLayout();
   const user = useSessionStore((state) => state.user);
-  const canAdjust = user?.role === 'manager' || user?.role === 'owner';
+  const canAdjust = user?.role === 'owner';
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -66,13 +66,14 @@ export function InventoryScreen({ navigation }: NativeStackScreenProps<RootStack
   const safeStock = items.length - lowStock;
 
   const openAdjustment = (item: InventoryItem) => {
+    if (!canAdjust) return;
     setSelected(item);
     setStockValue(formatNumericInput(item.stock));
     setFormError(null);
   };
 
   const saveAdjustment = async () => {
-    if (!selected) return;
+    if (!selected || !canAdjust) return;
     const quantity = parseNumericInput(stockValue);
     if (!Number.isInteger(quantity) || quantity < 0) {
       setFormError('Stok harus berupa bilangan bulat nol atau lebih.');
@@ -100,7 +101,11 @@ export function InventoryScreen({ navigation }: NativeStackScreenProps<RootStack
         keyExtractor={(item) => item.id}
         ListHeaderComponent={(
           <View style={styles.listHeader}>
-            <Header onBack={navigation.goBack} subtitle="Total donat fisik per ukuran, dihitung per pcs" title="Stok Donat" />
+            <Header
+              onBack={navigation.goBack}
+              subtitle={canAdjust ? 'Total donat fisik per ukuran, dihitung per pcs' : 'Mode lihat saja · hanya owner yang dapat mengubah stok'}
+              title="Stok Donat"
+            />
             <View style={[styles.topControls, isLandscapePhone && styles.topControlsLandscape]}>
               <View style={[styles.metrics, isLandscapePhone && styles.metricsLandscape]}>
                 <GlassCard style={styles.metric} contentStyle={[styles.metricInner, isLandscapePhone && styles.metricInnerLandscape]}>

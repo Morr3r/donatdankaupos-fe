@@ -19,6 +19,7 @@ export type RootStackParamList = {
   Settings: undefined;
   Products: undefined;
   ProductEditor: { productId?: string } | undefined;
+  Notifications: undefined;
 };
 
 declare global {

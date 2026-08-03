@@ -1,19 +1,25 @@
 {
   "cli": {
-    "version": ">= 18.0.0"
+    "version": ">= 18.0.0",
+    "appVersionSource": "remote"
   },
   "build": {
     "development": {
+      "environment": "development",
+      "autoIncrement": true,
       "developmentClient": true,
       "distribution": "internal"
     },
     "preview": {
+      "environment": "preview",
+      "autoIncrement": true,
       "distribution": "internal",
       "android": {
         "buildType": "apk"
       }
     },
     "production": {
+      "environment": "production",
       "autoIncrement": true
     }
   }

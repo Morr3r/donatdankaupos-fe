@@ -1,4 +1,4 @@
-export type UserRole = 'cashier' | 'manager' | 'owner';
+export type UserRole = 'cashier' | 'staff' | 'manager' | 'owner';
 
 export interface User {
   id: string;
@@ -187,4 +187,33 @@ export interface LoginResponse {
   accessToken: string;
   refreshToken: string;
   user: User;
+}
+
+export type NotificationKind = 'sale_created' | 'stock_adjusted';
+export type NotificationPushStatus = 'pending' | 'sent' | 'partial' | 'failed' | 'no_device';
+
+export interface AppNotification {
+  id: string;
+  kind: NotificationKind;
+  title: string;
+  body: string;
+  actorName: string;
+  data: Record<string, unknown>;
+  pushStatus: NotificationPushStatus;
+  readAt?: string | null;
+  createdAt: string;
+}
+
+export interface NotificationFeed {
+  items: AppNotification[];
+  unreadCount: number;
+}
+
+export type PushPermissionState = 'unknown' | 'registering' | 'granted' | 'denied' | 'unsupported' | 'error';
+
+export interface PushTestResult {
+  requestedDevices: number;
+  acceptedDevices: number;
+  failedDevices: number;
+  message: string;
 }

@@ -13,6 +13,7 @@ import { formatClock, formatCompact, formatCurrency, getGreeting, paymentLabels 
 import { useResponsiveLayout } from '../utils/responsive';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useCallback, useState } from 'react';
+import { NotificationBell } from '../components/notifications';
 
 const toDateParam = (value: Date) => {
   const year = value.getFullYear();
@@ -54,6 +55,7 @@ export function DashboardScreen() {
         brand={<BrandLogo style={styles.headerLogo} width={128} />}
         subtitle={`${getGreeting()}, ${user?.name?.split(' ')[0] ?? 'Kasir'}`}
         title="Ringkasan hari ini"
+        right={<NotificationBell onPress={() => navigation.navigate('Notifications')} />}
       />
 
       <GlassCard dark style={styles.heroCard} contentStyle={[styles.heroContent, isLandscapePhone && styles.heroContentLandscape]}>
