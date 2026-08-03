@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Check, Home, Printer, ReceiptText, Share2, ShoppingBag } from 'lucide-react-native';
+import { Check, Clock3, Home, Printer, ReceiptText, Share2, ShoppingBag } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Platform, StyleSheet, Text, View } from 'react-native';
 import ViewShot, { type ViewShotRef } from 'react-native-view-shot';
@@ -9,7 +9,7 @@ import type { RootStackParamList } from '../navigation/types';
 import { useOperationsStore } from '../store/operationsStore';
 import { gradients, palette, radius, shadow, spacing, type } from '../theme/tokens';
 import { selectedOptionSummary } from '../utils/cartOptions';
-import { formatCurrency, formatDateTime, orderTypeLabels, paymentLabels, pricingModeLabels } from '../utils/format';
+import { formatCurrency, formatDateTime, getPaymentLabel, orderTypeLabels, pricingModeLabels } from '../utils/format';
 import { LinearGradient } from 'expo-linear-gradient';
 import { shareInvoiceImage } from '../utils/share-invoice';
 import { useThermalInvoicePrinter } from '../utils/useThermalInvoicePrinter';
@@ -33,7 +33,7 @@ export function PaymentSuccessScreen({ navigation, route }: Props) {
     checkScale.setValue(1);
     checkOffset.setValue(0);
 
-    if (reducedMotion) return undefined;
+    if (reducedMotion || transaction?.status === 'pending') return undefined;
 
     const useNativeDriver = Platform.OS !== 'web';
     const animation = Animated.loop(
@@ -71,10 +71,11 @@ export function PaymentSuccessScreen({ navigation, route }: Props) {
 
     animation.start();
     return () => animation.stop();
-  }, [checkOffset, checkScale, reducedMotion]);
+  }, [checkOffset, checkScale, reducedMotion, transaction?.status]);
 
   if (!transaction) return <Screen><Text style={styles.notFound}>Transaksi tidak ditemukan.</Text></Screen>;
 
+  const isPending = transaction.status === 'pending';
   const newSale = () => navigation.reset({ index: 0, routes: [{ name: 'MainTabs', params: { screen: 'POS' } }] });
   const goHome = () => navigation.reset({ index: 0, routes: [{ name: 'MainTabs', params: { screen: 'Home' } }] });
   const safeReceiptNo = transaction.receiptNo.replace(/[^a-zA-Z0-9_-]/g, '-');
@@ -119,13 +120,15 @@ export function PaymentSuccessScreen({ navigation, route }: Props) {
         <Animated.View
           style={[styles.checkMotion, { transform: [{ translateY: checkOffset }, { scale: checkScale }] }]}
         >
-          <LinearGradient colors={gradients.success} style={styles.checkCircle}>
-            <Check color={palette.white} size={42} strokeWidth={2.5} />
+          <LinearGradient colors={isPending ? gradients.gold : gradients.success} style={styles.checkCircle}>
+            {isPending
+              ? <Clock3 color={palette.white} size={42} strokeWidth={2.5} />
+              : <Check color={palette.white} size={42} strokeWidth={2.5} />}
           </LinearGradient>
         </Animated.View>
-        <StatusPill label="Pembayaran berhasil" style={styles.successStatus} tone="success" />
-        <Text accessibilityRole="header" style={styles.title}>Transaksi selesai</Text>
-        <Text style={styles.subtitle}>Pembayaran sudah dicatat. Siapkan pesanan terbaik untuk pelanggan.</Text>
+        <StatusPill label={isPending ? 'Menunggu pembayaran' : 'Pembayaran berhasil'} style={styles.successStatus} tone={isPending ? 'warning' : 'success'} />
+        <Text accessibilityRole="header" style={styles.title}>{isPending ? 'Bayar nanti dicatat' : 'Transaksi selesai'}</Text>
+        <Text style={styles.subtitle}>{isPending ? 'Tagihan belum masuk pendapatan. Lunasi dari Riwayat saat pelanggan membayar.' : 'Pembayaran sudah dicatat. Siapkan pesanan terbaik untuk pelanggan.'}</Text>
         <Text style={styles.total}>{formatCurrency(transaction.total)}</Text>
         {transaction.change > 0 ? <Text style={styles.change}>Kembalian {formatCurrency(transaction.change)}</Text> : null}
       </View>
@@ -134,7 +137,7 @@ export function PaymentSuccessScreen({ navigation, route }: Props) {
         <View style={styles.receiptHeading}>
           <View style={styles.receiptIcon}><ReceiptText color={palette.cocoa} size={22} /></View>
           <View style={styles.receiptCopy}><Text style={styles.receiptNo}>{transaction.receiptNo}</Text><Text style={styles.receiptDate}>{formatDateTime(transaction.createdAt)}</Text></View>
-          <StatusPill label="Tersimpan" tone="success" />
+          <StatusPill label={isPending ? 'Pending' : 'Tersimpan'} tone={isPending ? 'warning' : 'success'} />
         </View>
         <Divider />
         {transaction.items.map((item) => (
@@ -143,7 +146,7 @@ export function PaymentSuccessScreen({ navigation, route }: Props) {
           </View>
         ))}
         <Divider />
-        <DetailRow label="Metode" value={paymentLabels[transaction.paymentMethod]} />
+        <DetailRow label="Metode" value={getPaymentLabel(transaction.paymentMethod)} />
         <DetailRow label="Jenis pesanan" value={orderTypeLabels[transaction.orderType]} />
         <DetailRow label="Jenis harga" value={pricingModeLabels[transaction.pricingMode]} />
         {transaction.customerName ? <DetailRow label="Pelanggan" value={transaction.customerName} /> : null}
@@ -160,7 +163,7 @@ export function PaymentSuccessScreen({ navigation, route }: Props) {
         <View style={styles.invoiceTotalRow}><Text style={styles.invoiceTotalLabel}>Total pembayaran</Text><Text style={styles.invoiceTotalValue}>{formatCurrency(transaction.total)}</Text></View>
         {transaction.paymentMethod === 'cash' ? <DetailRow label="Uang diterima" value={formatCurrency(transaction.amountPaid)} /> : null}
         {transaction.change > 0 ? <DetailRow label="Kembalian" value={formatCurrency(transaction.change)} /> : null}
-        <Text style={styles.invoiceThanks}>Terima kasih sudah berbelanja di Donat Dankau.</Text>
+        <Text style={styles.invoiceThanks}>{isPending ? 'Tagihan ini belum dibayar. Simpan nomor struk untuk pelunasan.' : 'Terima kasih sudah berbelanja di Donat Dankau.'}</Text>
       </GlassCard>
       </ViewShot>
 

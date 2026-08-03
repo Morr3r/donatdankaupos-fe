@@ -84,6 +84,9 @@ export const paymentLabels: Record<PaymentMethod, string> = {
   transfer: 'Transfer',
 };
 
+export const getPaymentLabel = (method: PaymentMethod | null | undefined) =>
+  method ? paymentLabels[method] : 'Belum dibayar';
+
 export const orderTypeLabels: Record<OrderType, string> = {
   takeaway: 'Bawa pulang',
   dine_in: 'Makan di tempat',

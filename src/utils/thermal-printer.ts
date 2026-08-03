@@ -7,7 +7,7 @@ import type {
 } from '../../modules/thermal-printer/src/ThermalPrinter.types';
 import type { Transaction } from '../types/domain';
 import { selectedOptionSummary } from './cartOptions';
-import { formatDateTime, orderTypeLabels, paymentLabels, pricingModeLabels } from './format';
+import { formatDateTime, getPaymentLabel, orderTypeLabels, pricingModeLabels } from './format';
 
 const PRINTER_STORAGE_KEY = 'donatdankau.thermal-printer.v2';
 const LEGACY_PRINTER_STORAGE_KEY = 'donatdankau.thermal-printer.v1';
@@ -320,7 +320,8 @@ function appendReceiptCopy(
   setBold(bytes, false);
   textLine(bytes, doubleRule);
 
-  appendKeyValue(bytes, 'Metode', paymentLabels[transaction.paymentMethod], receiptWidth);
+  appendKeyValue(bytes, 'Status', transaction.status === 'pending' ? 'BAYAR NANTI' : transaction.status === 'paid' ? 'LUNAS' : 'REFUND', receiptWidth);
+  appendKeyValue(bytes, 'Metode', getPaymentLabel(transaction.paymentMethod), receiptWidth);
   appendKeyValue(bytes, 'Pesanan', orderTypeLabels[transaction.orderType], receiptWidth);
   appendKeyValue(bytes, 'Harga', pricingModeLabels[transaction.pricingMode], receiptWidth);
   if (transaction.paymentMethod === 'cash') {
@@ -330,8 +331,8 @@ function appendReceiptCopy(
 
   textLine(bytes, rule);
   setAlign(bytes, 1);
-  textLine(bytes, 'Terima kasih sudah berbelanja');
-  textLine(bytes, 'di Donat Dankau.');
+  textLine(bytes, transaction.status === 'pending' ? 'TAGIHAN BELUM DIBAYAR' : 'Terima kasih sudah berbelanja');
+  textLine(bytes, transaction.status === 'pending' ? 'Lunasi melalui riwayat transaksi.' : 'di Donat Dankau.');
   setBold(bytes, true);
   textLine(bytes, `*** ${copyLabel} ***`);
   setBold(bytes, false);

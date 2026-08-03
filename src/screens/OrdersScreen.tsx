@@ -10,12 +10,13 @@ import type { RootStackParamList } from '../navigation/types';
 import { palette, radius, spacing, type } from '../theme/tokens';
 import type { Transaction, TransactionStatus } from '../types/domain';
 import { type DateRangeSelection, makeDateRange, toSalesQuery } from '../utils/date';
-import { formatCurrency, formatDateTime, paymentLabels } from '../utils/format';
+import { formatCurrency, formatDateTime, getPaymentLabel } from '../utils/format';
 import { useResponsiveLayout } from '../utils/responsive';
 
 type Filter = 'all' | TransactionStatus;
 const filters: { id: Filter; label: string }[] = [
   { id: 'all', label: 'Semua' },
+  { id: 'pending', label: 'Bayar nanti' },
   { id: 'paid', label: 'Berhasil' },
   { id: 'refunded', label: 'Refund' },
 ];
@@ -38,13 +39,15 @@ export function OrdersScreen() {
       return matchesStatus && matchesSearch;
     });
   }, [filter, search, transactions]);
-  const total = filtered.filter((item) => item.status === 'paid').reduce((sum, item) => sum + item.total, 0);
+  const showingPending = filter === 'pending';
+  const summaryTransactions = filtered.filter((item) => item.status === (showingPending ? 'pending' : 'paid'));
+  const total = summaryTransactions.reduce((sum, item) => sum + item.total, 0);
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
     setError(null);
     try {
-      setTransactions(await saleService.list(toSalesQuery(range)));
+      setTransactions(await saleService.list(filter === 'pending' ? 'status=pending&limit=1000' : toSalesQuery(range)));
     } catch (refreshError) {
       const message = refreshError instanceof Error ? refreshError.message : 'Transaksi tidak dapat dimuat.';
       setError(message);
@@ -52,7 +55,7 @@ export function OrdersScreen() {
     } finally {
       setRefreshing(false);
     }
-  }, [range]);
+  }, [filter, range]);
 
   useFocusEffect(useCallback(() => {
     refresh().catch(() => undefined);
@@ -60,13 +63,17 @@ export function OrdersScreen() {
 
   const listHeader = (
     <View style={styles.listHeader}>
-      <Header eyebrow="Penjualan" subtitle="Telusuri pembayaran dan refund berdasarkan tanggal" title="Transaksi" />
+      <Header eyebrow="Penjualan" subtitle={showingPending ? 'Menampilkan seluruh tagihan yang belum dilunasi' : 'Telusuri pembayaran dan refund berdasarkan tanggal'} title="Transaksi" />
       <View style={[styles.summaryPeriod, isLandscapePhone && styles.summaryPeriodLandscape]}>
         <GlassCard style={isLandscapePhone ? styles.summaryShellLandscape : undefined} contentStyle={[styles.summaryCard, isLandscapePhone && styles.summaryCardLandscape]}>
-          <View><Text style={styles.summaryLabel}>Nilai transaksi berhasil</Text><Text style={[styles.summaryValue, isLandscapePhone && styles.summaryValueLandscape]}>{formatCurrency(total)}</Text></View>
-          <View style={styles.summaryCount}><ReceiptText color={palette.cocoa} size={18} /><Text style={styles.summaryCountText}>{filtered.filter((item) => item.status === 'paid').length} struk</Text></View>
+          <View><Text style={styles.summaryLabel}>{showingPending ? 'Total tagihan belum lunas' : 'Nilai transaksi berhasil'}</Text><Text style={[styles.summaryValue, isLandscapePhone && styles.summaryValueLandscape]}>{formatCurrency(total)}</Text></View>
+          <View style={styles.summaryCount}><ReceiptText color={palette.cocoa} size={18} /><Text style={styles.summaryCountText}>{summaryTransactions.length} struk</Text></View>
         </GlassCard>
-        <View style={isLandscapePhone ? styles.periodLandscape : undefined}><DateRangePicker onChange={setRange} value={range} /></View>
+        <View style={isLandscapePhone ? styles.periodLandscape : undefined}>
+          {showingPending
+            ? <GlassCard contentStyle={styles.pendingRangeNote}><Text style={styles.pendingRangeTitle}>Seluruh periode</Text><Text style={styles.pendingRangeText}>Tagihan pending tetap tampil sampai dilunasi.</Text></GlassCard>
+            : <DateRangePicker onChange={setRange} value={range} />}
+        </View>
       </View>
       <View style={[styles.searchFilters, isLandscapePhone && styles.searchFiltersLandscape]}>
         <View style={[styles.searchWrap, isLandscapePhone && styles.searchWrapLandscape]}><SearchField onChangeText={setSearch} placeholder="No. struk atau pelanggan" value={search} /></View>
@@ -116,12 +123,12 @@ export function OrdersScreen() {
                 <View style={styles.transactionTop}>
                   <View style={styles.transactionIcon}><ReceiptText color={palette.cocoa} size={20} /></View>
                   <View style={styles.transactionCopy}><Text numberOfLines={1} style={styles.receiptNo}>{item.receiptNo}</Text><Text style={styles.transactionDate}>{formatDateTime(item.createdAt)}</Text></View>
-                  <StatusPill label={item.status === 'paid' ? 'Berhasil' : 'Refund'} tone={item.status === 'paid' ? 'success' : 'danger'} />
+                  <StatusPill label={item.status === 'paid' ? 'Berhasil' : item.status === 'pending' ? 'Bayar nanti' : 'Refund'} tone={item.status === 'paid' ? 'success' : item.status === 'pending' ? 'warning' : 'danger'} />
                 </View>
                 <View style={styles.transactionBottom}>
-                  <View style={styles.transactionMeta}><Text style={styles.metaLabel}>{item.itemCount} item · {paymentLabels[item.paymentMethod]}</Text><Text numberOfLines={1} style={styles.customer}>{item.customerName ?? 'Pelanggan umum'}</Text></View>
+                  <View style={styles.transactionMeta}><Text style={styles.metaLabel}>{item.itemCount} item · {getPaymentLabel(item.paymentMethod)}</Text><Text numberOfLines={1} style={styles.customer}>{item.customerName ?? 'Pelanggan umum'}</Text></View>
                   <View style={styles.amountSection}>
-                    <View style={styles.amountWrap}><Text style={styles.amount}>{formatCurrency(item.total)}</Text><Text style={[styles.profitAmount, item.status === 'refunded' && styles.refundedProfit]}>Profit {formatCurrency(item.netProfit)}</Text></View>
+                    <View style={styles.amountWrap}><Text style={styles.amount}>{formatCurrency(item.total)}</Text><Text style={[styles.profitAmount, item.status !== 'paid' && styles.refundedProfit]}>{item.status === 'pending' ? 'Belum masuk pendapatan' : `Profit ${formatCurrency(item.netProfit)}`}</Text></View>
                     <View style={styles.openIcon}><ArrowUpRight color={palette.muted} size={17} /></View>
                   </View>
                 </View>
@@ -163,10 +170,10 @@ function SalesTableRow({ item, onPress }: { item: Transaction; onPress: () => vo
       <Text numberOfLines={2} style={[styles.tableText, styles.dateColumn]}>{formatDateTime(item.createdAt)}</Text>
       <Text numberOfLines={1} style={[styles.tableReceipt, styles.receiptColumn]}>{item.receiptNo}</Text>
       <View style={styles.cashierColumn}><Text numberOfLines={1} style={styles.tableTextStrong}>{item.cashierName}</Text><Text numberOfLines={1} style={styles.tableSubtext}>{item.customerName ?? 'Pelanggan umum'}</Text></View>
-      <Text style={[styles.tableText, styles.methodColumn]}>{paymentLabels[item.paymentMethod]}</Text>
+      <Text style={[styles.tableText, styles.methodColumn]}>{getPaymentLabel(item.paymentMethod)}</Text>
       <Text style={[styles.tableText, styles.itemColumn]}>{item.itemCount}</Text>
-      <View style={styles.totalColumn}><Text style={styles.tableAmount}>{formatCurrency(item.total)}</Text><Text style={[styles.tableProfit, item.status === 'refunded' && styles.refundedProfit]}>Profit {formatCurrency(item.netProfit)}</Text></View>
-      <View style={styles.stateColumn}><StatusPill label={item.status === 'paid' ? 'Berhasil' : 'Refund'} tone={item.status === 'paid' ? 'success' : 'danger'} /></View>
+      <View style={styles.totalColumn}><Text style={styles.tableAmount}>{formatCurrency(item.total)}</Text><Text style={[styles.tableProfit, item.status !== 'paid' && styles.refundedProfit]}>{item.status === 'pending' ? 'Belum diakui' : `Profit ${formatCurrency(item.netProfit)}`}</Text></View>
+      <View style={styles.stateColumn}><StatusPill label={item.status === 'paid' ? 'Berhasil' : item.status === 'pending' ? 'Bayar nanti' : 'Refund'} tone={item.status === 'paid' ? 'success' : item.status === 'pending' ? 'warning' : 'danger'} /></View>
       <View style={styles.openColumn}><ArrowUpRight color={palette.muted} size={17} /></View>
     </ScalePressable>
   );
@@ -180,6 +187,9 @@ const styles = StyleSheet.create({
   summaryPeriodLandscape: { flexDirection: 'row', alignItems: 'stretch', gap: spacing.xs, marginBottom: spacing.xs },
   summaryShellLandscape: { width: 250, minWidth: 250, maxWidth: 250, flexShrink: 0 },
   periodLandscape: { flex: 1, minWidth: 0 },
+  pendingRangeNote: { minHeight: 60, paddingHorizontal: spacing.md, justifyContent: 'center' },
+  pendingRangeTitle: { color: palette.ink, fontFamily: type.bold, fontSize: 11 },
+  pendingRangeText: { color: palette.muted, fontFamily: type.regular, fontSize: 10, lineHeight: 15, marginTop: 2 },
   summaryCard: { marginBottom: spacing.md, padding: spacing.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   summaryCardLandscape: { minHeight: 52, marginBottom: 0, paddingVertical: spacing.xs, paddingHorizontal: spacing.sm },
   summaryLabel: { color: palette.muted, fontFamily: type.medium, fontSize: 10 },

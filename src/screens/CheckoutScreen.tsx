@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Banknote, CreditCard, Handshake, Landmark, QrCode, ShoppingBag, Tag, UserRound } from 'lucide-react-native';
+import { Banknote, Clock3, CreditCard, Handshake, Landmark, QrCode, ShoppingBag, Tag, UserRound } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { promotionService, saleService } from '../api/services';
@@ -48,7 +48,8 @@ export function CheckoutScreen({ navigation }: Props) {
   const [discount, setDiscount] = useState(0);
   const [amountPaid, setAmountPaid] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [processing, setProcessing] = useState(false);
+  const [customerError, setCustomerError] = useState<string | null>(null);
+  const [processing, setProcessing] = useState<'payment' | 'deferred' | null>(null);
   const [validatingVoucher, setValidatingVoucher] = useState(false);
   const totals = useMemo(() => getCartTotals(
     cart,
@@ -84,25 +85,32 @@ export function CheckoutScreen({ navigation }: Props) {
     }
   };
 
-  const handlePayment = async () => {
+  const handlePayment = async (deferPayment = false) => {
     if (!cart.length || !shift || shift.status !== 'open') {
       setError('Keranjang kosong atau shift sudah tidak aktif.');
       return;
     }
-    const paid = paymentMethod === 'cash' ? numericPaid : totals.total;
-    if (paymentMethod === 'cash' && paid < totals.total) {
+    if (deferPayment && !customerName.trim()) {
+      setCustomerError('Nama pelanggan wajib diisi agar tagihan mudah ditemukan di riwayat.');
+      setError('Lengkapi nama pelanggan sebelum memilih Bayar Nanti.');
+      return;
+    }
+    const paid = deferPayment ? 0 : paymentMethod === 'cash' ? numericPaid : totals.total;
+    if (!deferPayment && paymentMethod === 'cash' && paid < totals.total) {
       setError(`Nominal kurang ${formatCurrency(totals.total - paid)}.`);
       return;
     }
 
-    setProcessing(true);
+    setProcessing(deferPayment ? 'deferred' : 'payment');
     setError(null);
+    setCustomerError(null);
     const payload: SaleRequest = {
       idempotencyKey: createLocalId('sale'),
       shiftId: shift.id,
       items: cart,
       orderType,
-      paymentMethod,
+      paymentMethod: deferPayment ? undefined : paymentMethod,
+      deferPayment,
       pricingMode,
       customerName: customerName.trim() || undefined,
       voucherCode: voucher.trim() || undefined,
@@ -121,7 +129,7 @@ export function CheckoutScreen({ navigation }: Props) {
     } catch (paymentError) {
       setError(paymentError instanceof Error ? paymentError.message : 'Pembayaran tidak dapat diproses.');
     } finally {
-      setProcessing(false);
+      setProcessing(null);
     }
   };
 
@@ -152,7 +160,15 @@ export function CheckoutScreen({ navigation }: Props) {
       <View style={styles.chips}>{orderTypes.map((item) => <Chip key={item.id} label={item.label} onPress={() => setOrderType(item.id)} selected={orderType === item.id} />)}</View>
 
       <SectionHeader title="Detail pelanggan" />
-      <Field autoCapitalize="words" label="Nama pelanggan (opsional)" leftIcon={UserRound} onChangeText={setCustomerName} placeholder="Contoh: Kak Rani" value={customerName} />
+      <Field
+        autoCapitalize="words"
+        error={customerError}
+        label="Nama pelanggan (wajib untuk Bayar Nanti)"
+        leftIcon={UserRound}
+        onChangeText={(value) => { setCustomerName(value); setCustomerError(null); }}
+        placeholder="Contoh: Kak Rani"
+        value={customerName}
+      />
 
       <SectionHeader title="Pesanan" />
       <GlassCard contentStyle={styles.orderCard}>
@@ -205,8 +221,22 @@ export function CheckoutScreen({ navigation }: Props) {
 
       {error ? <Text accessibilityLiveRegion="assertive" style={styles.error}>{error}</Text> : null}
       <View style={styles.checkoutAction}>
-        <Button icon={paymentMethods.find((item) => item.id === paymentMethod)?.icon ?? CreditCard} label={`Bayar ${formatCurrency(totals.total)}`} loading={processing} onPress={handlePayment} />
-        <Text style={styles.offlineHelper}>Pastikan nominal pembayaran sudah benar sebelum menyelesaikan transaksi.</Text>
+        <Button
+          disabled={processing !== null && processing !== 'payment'}
+          icon={paymentMethods.find((item) => item.id === paymentMethod)?.icon ?? CreditCard}
+          label={`Bayar ${formatCurrency(totals.total)}`}
+          loading={processing === 'payment'}
+          onPress={() => handlePayment(false)}
+        />
+        <Button
+          disabled={processing !== null && processing !== 'deferred'}
+          icon={Clock3}
+          label="Bayar nanti"
+          loading={processing === 'deferred'}
+          onPress={() => handlePayment(true)}
+          variant="secondary"
+        />
+        <Text style={styles.offlineHelper}>Bayar Nanti disimpan sebagai pending dan baru masuk pendapatan saat dilunasi dari Riwayat.</Text>
       </View>
     </Screen>
   );
@@ -271,7 +301,7 @@ const styles = StyleSheet.create({
   grandLabel: { color: palette.ink, fontFamily: type.bold, fontSize: 15 },
   grandValue: { color: palette.cocoa, fontFamily: type.display, fontSize: 25 },
   error: { color: palette.danger, fontFamily: type.medium, fontSize: 12, lineHeight: 18, marginVertical: spacing.md, textAlign: 'center' },
-  checkoutAction: { marginTop: spacing.md },
+  checkoutAction: { marginTop: spacing.md, gap: spacing.xs },
   offlineHelper: { color: palette.muted, fontFamily: type.regular, fontSize: 10, textAlign: 'center', lineHeight: 15, marginTop: spacing.sm },
   emptyState: { flex: 1, minHeight: 500, alignItems: 'center', justifyContent: 'center', gap: spacing.md },
   emptyIcon: { width: 72, height: 72, borderRadius: 26, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.roseSoft },

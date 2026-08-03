@@ -29,13 +29,19 @@ export function ShiftScreen({ navigation }: NativeStackScreenProps<RootStackPara
   const [openingBankBalanceError, setOpeningBankBalanceError] = useState<string | null>(null);
   const [openingBalanceError, setOpeningBalanceError] = useState<string | null>(null);
   const [savingOpeningBalances, setSavingOpeningBalances] = useState(false);
-  const shiftTransactions = useMemo(() => transactions.filter((item) => item.shiftId === shift?.id), [shift?.id, transactions]);
-  const cashSales = useMemo(() => shiftTransactions.filter((item) => item.status === 'paid' && item.paymentMethod === 'cash').reduce((sum, item) => sum + item.total, 0), [shiftTransactions]);
-  const nonCashSales = useMemo(() => shiftTransactions.filter((item) => item.status === 'paid' && item.paymentMethod !== 'cash').reduce((sum, item) => sum + item.total, 0), [shiftTransactions]);
+  const shiftTransactions = useMemo(() => transactions.filter((item) => (
+    item.paymentShiftId === shift?.id
+    || (!item.paymentShiftId && item.shiftId === shift?.id)
+  )), [shift?.id, transactions]);
+  const localCashSales = useMemo(() => shiftTransactions.filter((item) => item.status === 'paid' && item.paymentMethod === 'cash').reduce((sum, item) => sum + item.total, 0), [shiftTransactions]);
+  const localNonCashSales = useMemo(() => shiftTransactions.filter((item) => item.status === 'paid' && item.paymentMethod !== 'cash').reduce((sum, item) => sum + item.total, 0), [shiftTransactions]);
+  const cashSales = expenseOverview?.cashSales ?? localCashSales;
+  const nonCashSales = expenseOverview?.nonCashSales ?? localNonCashSales;
   const cashExpenses = expenseOverview?.cashExpenses ?? 0;
   const bankExpenses = expenseOverview?.bankExpenses ?? 0;
-  const expectedCash = (shift?.openingCash ?? 0) + cashSales - cashExpenses;
-  const expectedBankBalance = (shift?.openingBankBalance ?? 0) - bankExpenses;
+  const expectedCash = expenseOverview?.cashBalance ?? (shift?.openingCash ?? 0) + cashSales - cashExpenses;
+  const expectedBankBalance = expenseOverview?.bankBalance
+    ?? (shift?.openingBankBalance ?? 0) + nonCashSales - bankExpenses;
   const actual = parseNumericInput(actualCash);
   const difference = actual - expectedCash;
   const editedOpeningCash = parseNumericInput(openingCashInput);
@@ -79,8 +85,8 @@ export function ShiftScreen({ navigation }: NativeStackScreenProps<RootStackPara
 
   const handleOpeningBalanceSave = async () => {
     if (!shift || shift.status !== 'open') return;
-    const nextCashError = openingCashInput.trim() ? null : 'Uang fisik awal wajib diisi. Masukkan 0 jika kosong.';
-    const nextBankError = openingBankBalanceInput.trim() ? null : 'Saldo rekening kas wajib diisi. Masukkan 0 jika kosong.';
+    const nextCashError = openingCashInput.trim() ? null : 'Kas tunai awal wajib diisi. Masukkan 0 jika kosong.';
+    const nextBankError = openingBankBalanceInput.trim() ? null : 'Kas non-tunai awal wajib diisi. Masukkan 0 jika kosong.';
     setOpeningCashError(nextCashError);
     setOpeningBankBalanceError(nextBankError);
     setOpeningBalanceError(null);
@@ -111,7 +117,7 @@ export function ShiftScreen({ navigation }: NativeStackScreenProps<RootStackPara
       return;
     }
     if (!actualCash) {
-      Alert.alert('Kas aktual belum diisi', 'Hitung uang fisik di laci lalu masukkan nominalnya.');
+      Alert.alert('Kas aktual belum diisi', 'Hitung kas tunai di laci lalu masukkan nominalnya.');
       return;
     }
     Alert.alert('Tutup shift sekarang?', `Selisih kas tercatat ${formatCurrency(difference)}. Setelah ditutup, kasir harus membuka shift baru.`, [
@@ -149,7 +155,7 @@ export function ShiftScreen({ navigation }: NativeStackScreenProps<RootStackPara
       <SectionHeader
         actionLabel={shift.status === 'open' && !editingOpeningBalances ? 'Ubah saldo awal' : undefined}
         onAction={beginOpeningBalanceEdit}
-        title="Rekonsiliasi kas"
+        title="Rekonsiliasi saldo kas"
       />
       <GlassCard contentStyle={styles.reconcileCard}>
         {editingOpeningBalances ? (
@@ -161,7 +167,7 @@ export function ShiftScreen({ navigation }: NativeStackScreenProps<RootStackPara
             <Field
               error={openingCashError}
               keyboardType="number-pad"
-              label="Uang fisik awal"
+              label="Kas tunai awal"
               leftIcon={Banknote}
               onChangeText={(value) => {
                 setOpeningCashInput(formatNumericInput(value));
@@ -176,7 +182,7 @@ export function ShiftScreen({ navigation }: NativeStackScreenProps<RootStackPara
             <Field
               error={openingBankBalanceError}
               keyboardType="number-pad"
-              label="Saldo rekening kas awal"
+              label="Kas non-tunai awal"
               leftIcon={Landmark}
               onChangeText={(value) => {
                 setOpeningBankBalanceInput(formatNumericInput(value));
@@ -206,19 +212,19 @@ export function ShiftScreen({ navigation }: NativeStackScreenProps<RootStackPara
             <Divider />
           </View>
         ) : null}
-        <ReconcileRow icon={<Banknote color={palette.honey} size={17} />} label="Uang fisik awal" value={formatCurrency(shift.openingCash)} />
-        <ReconcileRow label="Penjualan tunai" value={formatCurrency(cashSales)} />
-        <ReconcileRow label="Pengeluaran dari fisik" value={`− ${formatCurrency(cashExpenses)}`} />
+        <ReconcileRow icon={<Banknote color={palette.honey} size={17} />} label="Kas tunai awal" value={formatCurrency(shift.openingCash)} />
+        <ReconcileRow label="Penjualan tunai (+)" value={`+ ${formatCurrency(cashSales)}`} />
+        <ReconcileRow label="Pengeluaran kas tunai (−)" value={`− ${formatCurrency(cashExpenses)}`} />
         <Divider />
-        <ReconcileRow emphasis label="Uang fisik seharusnya" value={formatCurrency(expectedCash)} />
-        <Field editable={shift.status === 'open'} keyboardType="number-pad" label="Kas aktual di laci" leftIcon={Banknote} onChangeText={(value) => setActualCash(formatNumericInput(value))} placeholder="Hitung uang fisik" value={actualCash} />
+        <ReconcileRow emphasis label="Saldo kas tunai" value={formatCurrency(expectedCash)} />
+        <Field editable={shift.status === 'open'} keyboardType="number-pad" label="Kas tunai aktual di laci" leftIcon={Banknote} onChangeText={(value) => setActualCash(formatNumericInput(value))} placeholder="Hitung kas tunai" value={actualCash} />
         {actualCash ? <View style={[styles.difference, difference !== 0 && styles.differenceWarning]}><Text style={[styles.differenceLabel, difference !== 0 && styles.differenceTextWarning]}>Selisih kas</Text><Text style={[styles.differenceValue, difference !== 0 && styles.differenceTextWarning]}>{difference > 0 ? '+' : ''}{formatCurrency(difference)}</Text></View> : null}
         <Divider />
-        <ReconcileRow icon={<Landmark color={palette.rose} size={17} />} label="Rekening kas awal" value={formatCurrency(shift.openingBankBalance ?? 0)} />
-        <ReconcileRow label="Pengeluaran dari rekening kas" value={`− ${formatCurrency(bankExpenses)}`} />
+        <ReconcileRow icon={<Landmark color={palette.rose} size={17} />} label="Kas non-tunai awal" value={formatCurrency(shift.openingBankBalance ?? 0)} />
+        <ReconcileRow label="Penjualan QRIS/transfer/kartu (+)" value={`+ ${formatCurrency(nonCashSales)}`} />
+        <ReconcileRow label="Pengeluaran kas non-tunai (−)" value={`− ${formatCurrency(bankExpenses)}`} />
         <Divider />
-        <ReconcileRow emphasis label="Sisa rekening kas" value={formatCurrency(expectedBankBalance)} />
-        <ReconcileRow label="Pendapatan non-tunai (terpisah)" value={formatCurrency(nonCashSales)} />
+        <ReconcileRow emphasis label="Saldo kas non-tunai" value={formatCurrency(expectedBankBalance)} />
       </GlassCard>
 
       {expenseOverview?.totalExpenses ? <Text style={styles.expenseSummary}>Total pengeluaran shift ini {formatCurrency(expenseOverview.totalExpenses)}.</Text> : null}

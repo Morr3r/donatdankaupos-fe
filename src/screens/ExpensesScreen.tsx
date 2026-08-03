@@ -15,8 +15,8 @@ import { createLocalId, formatCurrency, formatDateTime, formatNumericInput, pars
 type Props = NativeStackScreenProps<RootStackParamList, 'Expenses'>;
 
 const fundingLabels: Record<ExpenseFundingSource, string> = {
-  bank: 'Rekening kas',
-  cash: 'Uang fisik',
+  bank: 'Kas non-tunai',
+  cash: 'Kas tunai',
 };
 
 export function ExpensesScreen({ navigation }: Props) {
@@ -127,7 +127,7 @@ export function ExpensesScreen({ navigation }: Props) {
 
   return (
     <Screen bottomInset={spacing.xl} contentStyle={styles.screen}>
-      <Header onBack={navigation.goBack} subtitle="Pilih rekening kas atau uang fisik untuk setiap catatan" title="Pengeluaran" />
+      <Header onBack={navigation.goBack} subtitle="Pilih kas non-tunai atau kas tunai untuk setiap catatan" title="Pengeluaran" />
 
       <GlassCard dark contentStyle={styles.heroCard}>
         <View style={styles.heroHeading}><View style={styles.heroIcon}><ReceiptText color={palette.honeySoft} size={24} /></View><StatusPill label="Shift aktif" tone="success" /></View>
@@ -137,8 +137,8 @@ export function ExpensesScreen({ navigation }: Props) {
       </GlassCard>
 
       <View style={styles.balanceGrid}>
-        <BalanceCard icon={Landmark} label="Rekening kas" loading={loading} value={overview?.bankBalance ?? 0} />
-        <BalanceCard icon={Banknote} label="Uang fisik" loading={loading} value={overview?.cashBalance ?? 0} />
+        <BalanceCard icon={Landmark} label="Kas non-tunai" loading={loading} value={overview?.bankBalance ?? 0} />
+        <BalanceCard icon={Banknote} label="Kas tunai" loading={loading} value={overview?.cashBalance ?? 0} />
         <BalanceCard icon={WalletCards} label="Total tersedia" loading={loading} value={overview?.totalBalance ?? 0} />
       </View>
 
@@ -196,8 +196,8 @@ export function ExpensesScreen({ navigation }: Props) {
                   <Text style={[styles.expenseName, isCancelled && styles.cancelledText]}>{expense.name}</Text>
                   <Text style={styles.expenseMeta}>{formatDateTime(expense.createdAt)} · {expense.createdByName}</Text>
                   <View style={styles.fundingRow}>
-                    {expense.bankAmount > 0 ? <Text style={styles.fundingBank}>Rekening kas {formatCurrency(expense.bankAmount)}</Text> : null}
-                    {expense.cashAmount > 0 ? <Text style={styles.fundingCash}>Fisik {formatCurrency(expense.cashAmount)}</Text> : null}
+                    {expense.bankAmount > 0 ? <Text style={styles.fundingBank}>Non-tunai {formatCurrency(expense.bankAmount)}</Text> : null}
+                    {expense.cashAmount > 0 ? <Text style={styles.fundingCash}>Tunai {formatCurrency(expense.cashAmount)}</Text> : null}
                     {isCancelled ? <StatusPill label="Dibatalkan" tone="danger" /> : null}
                   </View>
                   {isCancelled ? <Text style={styles.cancelReason}>Alasan: {expense.cancelReason}</Text> : null}
@@ -222,7 +222,7 @@ export function ExpensesScreen({ navigation }: Props) {
       <FormModal
         footer={<View style={styles.modalActions}><Button compact label="Kembali" onPress={closeCancellation} variant="secondary" /><Button compact label="Batalkan & kembalikan saldo" loading={cancelling} onPress={handleCancel} variant="danger" /></View>}
         onClose={closeCancellation}
-        subtitle={expenseToCancel ? `${formatCurrency(expenseToCancel.amount)} akan dikembalikan ke ${expenseToCancel.fundingSource === 'cash' ? 'uang fisik' : expenseToCancel.fundingSource === 'bank' ? 'rekening kas' : 'sumber dana asal'}. Catatan tetap disimpan untuk audit.` : undefined}
+        subtitle={expenseToCancel ? `${formatCurrency(expenseToCancel.amount)} akan dikembalikan ke ${expenseToCancel.fundingSource === 'cash' ? 'kas tunai' : expenseToCancel.fundingSource === 'bank' ? 'kas non-tunai' : 'sumber dana asal'}. Catatan tetap disimpan untuk audit.` : undefined}
         title={`Batalkan ${expenseToCancel?.name ?? 'pengeluaran'}`}
         visible={Boolean(expenseToCancel)}
       >

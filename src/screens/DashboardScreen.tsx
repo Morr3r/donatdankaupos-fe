@@ -9,7 +9,7 @@ import type { RootStackParamList } from '../navigation/types';
 import { useOperationsStore } from '../store/operationsStore';
 import { useSessionStore } from '../store/sessionStore';
 import { gradients, palette, radius, spacing, type } from '../theme/tokens';
-import { formatClock, formatCompact, formatCurrency, getGreeting, paymentLabels } from '../utils/format';
+import { formatClock, formatCompact, formatCurrency, getGreeting, getPaymentLabel } from '../utils/format';
 import { useResponsiveLayout } from '../utils/responsive';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useCallback, useState } from 'react';
@@ -103,7 +103,7 @@ export function DashboardScreen() {
             <View style={styles.receiptIcon}><ReceiptText color={palette.cocoa} size={19} /></View>
             <View style={styles.transactionCopy}>
               <Text numberOfLines={2} style={styles.transactionId}>{transaction.receiptNo}</Text>
-              <Text style={styles.transactionMeta}>{formatClock(transaction.createdAt)} · {transaction.itemCount} item · {paymentLabels[transaction.paymentMethod]}</Text>
+              <Text style={styles.transactionMeta}>{formatClock(transaction.paidAt ?? transaction.createdAt)} · {transaction.itemCount} item · {getPaymentLabel(transaction.paymentMethod)}</Text>
               {compactTransactions ? <View style={styles.transactionAmountCompact}><Text numberOfLines={1} style={styles.transactionValue}>{formatCurrency(transaction.total)}</Text><ArrowRight color={palette.muted} size={17} /></View> : null}
             </View>
             {!compactTransactions ? <View style={styles.transactionAmount}><Text adjustsFontSizeToFit numberOfLines={1} style={styles.transactionValue}>{formatCurrency(transaction.total)}</Text><ArrowRight color={palette.muted} size={17} /></View> : null}

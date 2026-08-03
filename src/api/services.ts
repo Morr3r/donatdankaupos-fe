@@ -68,6 +68,11 @@ export const saleService = {
     method: 'POST',
     body: { reason, managerPin },
   }),
+  settle: (id: string, shiftId: string, paymentMethod: NonNullable<Transaction['paymentMethod']>, amountPaid: number) =>
+    apiRequest<Transaction>(`/sales/${id}/settlement`, {
+      method: 'POST',
+      body: { shiftId, paymentMethod, amountPaid },
+    }),
 };
 
 export const shiftService = {
@@ -150,7 +155,7 @@ export interface SalesSummary {
   netMarginPercent: number | null;
   previousPeriodGrowthPercent: number | null;
   series: { label: string; value: number }[];
-  paymentBreakdown: { method: Transaction['paymentMethod']; value: number; transactionCount: number }[];
+  paymentBreakdown: { method: NonNullable<Transaction['paymentMethod']>; value: number; transactionCount: number }[];
   topProducts: { productId: string; name: string; sold: number; revenue: number }[];
 }
 

@@ -46,7 +46,7 @@ export function MoreScreen() {
 
       <SectionHeader title="Operasional" />
       <GlassCard contentStyle={styles.menuCard}>
-        <MenuRow icon={WalletCards} label="Shift & kas harian" onPress={() => navigation.navigate('Shift')} subtitle="Uang fisik, rekening, dan rekonsiliasi" />
+        <MenuRow icon={WalletCards} label="Shift & kas harian" onPress={() => navigation.navigate('Shift')} subtitle="Kas tunai, non-tunai, dan rekonsiliasi" />
         <MenuRow icon={ReceiptText} label="Pengeluaran" onPress={() => navigation.navigate('Expenses')} subtitle="Catat biaya dan pantau saldo kas" />
         <MenuRow icon={PackageOpen} label="Stok produk" onPress={() => navigation.navigate('Inventory')} subtitle="Pantau stok menipis dan habis" />
         <MenuRow icon={BellRing} label="Notification Center" onPress={() => navigation.navigate('Notifications')} subtitle={unreadNotifications ? `${unreadNotifications} sinyal baru menunggu perhatian` : 'Aktivitas owner dan staff tersinkron'} />

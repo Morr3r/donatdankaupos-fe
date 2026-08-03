@@ -45,6 +45,8 @@ export interface Expense {
 
 export interface ExpenseOverview {
   expenses: Expense[];
+  cashSales: number;
+  nonCashSales: number;
   totalExpenses: number;
   bankExpenses: number;
   cashExpenses: number;
@@ -125,7 +127,7 @@ export interface CartItem {
 export type OrderType = 'takeaway' | 'dine_in' | 'delivery';
 export type PaymentMethod = 'cash' | 'qris' | 'card' | 'transfer';
 export type PricingMode = 'customer' | 'reseller';
-export type TransactionStatus = 'paid' | 'refunded';
+export type TransactionStatus = 'pending' | 'paid' | 'refunded';
 
 export interface CartTotals {
   subtotal: number;
@@ -140,7 +142,8 @@ export interface SaleRequest {
   shiftId: string;
   items: CartItem[];
   orderType: OrderType;
-  paymentMethod: PaymentMethod;
+  paymentMethod?: PaymentMethod;
+  deferPayment?: boolean;
   pricingMode: PricingMode;
   customerName?: string;
   notes?: string;
@@ -153,14 +156,16 @@ export interface SaleRequest {
 export interface Transaction {
   id: string;
   shiftId: string;
+  paymentShiftId?: string | null;
   receiptNo: string;
   createdAt: string;
+  paidAt?: string | null;
   cashierName: string;
   customerName?: string;
   items: CartItem[];
   itemCount: number;
   pieceCount: number;
-  paymentMethod: PaymentMethod;
+  paymentMethod: PaymentMethod | null;
   orderType: OrderType;
   pricingMode: PricingMode;
   status: TransactionStatus;

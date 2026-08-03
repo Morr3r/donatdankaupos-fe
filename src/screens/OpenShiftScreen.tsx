@@ -28,14 +28,14 @@ export function OpenShiftScreen() {
     const physicalValue = parseNumericInput(openingPhysicalCash);
     const bankValue = parseNumericInput(openingBankBalance);
     const nextPhysicalError = openingPhysicalCash.trim().length === 0
-      ? 'Uang fisik wajib diisi. Jika laci kosong, masukkan 0.'
+      ? 'Kas tunai wajib diisi. Jika laci kosong, masukkan 0.'
       : !Number.isFinite(physicalValue) || physicalValue < 0
-        ? 'Masukkan uang fisik yang valid.'
+        ? 'Masukkan saldo kas tunai yang valid.'
         : null;
     const nextBankError = openingBankBalance.trim().length === 0
-      ? 'Uang rekening kas wajib diisi. Jika saldo kosong, masukkan 0.'
+      ? 'Kas non-tunai wajib diisi. Jika saldo kosong, masukkan 0.'
       : !Number.isFinite(bankValue) || bankValue < 0
-        ? 'Masukkan uang rekening kas yang valid.'
+        ? 'Masukkan saldo kas non-tunai yang valid.'
         : null;
     setPhysicalError(nextPhysicalError);
     setBankError(nextBankError);
@@ -66,7 +66,7 @@ export function OpenShiftScreen() {
       <View style={styles.hero}>
         <StatusPill label="Wajib setiap hari" tone="warning" />
         <Text accessibilityRole="header" style={styles.title}>Buka shift hari ini</Text>
-        <Text style={styles.subtitle}>Sebelum mulai berjualan, catat uang fisik dan saldo rekening kas hari ini.</Text>
+        <Text style={styles.subtitle}>Sebelum mulai berjualan, catat saldo kas tunai dan non-tunai hari ini.</Text>
       </View>
 
       <GlassCard contentStyle={styles.shiftCard}>
@@ -86,7 +86,7 @@ export function OpenShiftScreen() {
         <Field
           error={physicalError}
           keyboardType="number-pad"
-          label="Uang fisik"
+          label="Kas tunai awal"
           leftIcon={Banknote}
           onChangeText={(value) => { setOpeningPhysicalCash(formatNumericInput(value)); setPhysicalError(null); setSubmitError(null); }}
           placeholder="0"
@@ -94,7 +94,7 @@ export function OpenShiftScreen() {
         />
         <Text style={styles.amountPreview}>{formatCurrency(parseNumericInput(openingPhysicalCash))}</Text>
 
-        <Text style={styles.suggestionLabel}>Nominal cepat uang fisik</Text>
+        <Text style={styles.suggestionLabel}>Nominal cepat kas tunai</Text>
         <View style={styles.suggestions}>
           {cashSuggestions.map((amount) => (
             <Button key={amount} compact label={formatCurrency(amount).replace('Rp', 'Rp ')} onPress={() => { setOpeningPhysicalCash(formatNumericInput(amount)); setPhysicalError(null); setSubmitError(null); }} style={styles.suggestionButton} variant={parseNumericInput(openingPhysicalCash) === amount ? 'primary' : 'secondary'} />
@@ -104,7 +104,7 @@ export function OpenShiftScreen() {
         <Field
           error={bankError}
           keyboardType="number-pad"
-          label="Uang rekening kas"
+          label="Kas non-tunai awal"
           leftIcon={Landmark}
           onChangeText={(value) => { setOpeningBankBalance(formatNumericInput(value)); setBankError(null); setSubmitError(null); }}
           placeholder="0"
@@ -114,7 +114,7 @@ export function OpenShiftScreen() {
 
         {submitError ? <Text style={styles.formError}>{submitError}</Text> : null}
         <Button disabled={!hasOpeningBalances} icon={Clock3} label="Buka shift & mulai jualan" loading={submitting} onPress={handleOpen} />
-        <Text style={styles.helper}>Kedua field wajib diisi setiap hari. Masukkan angka 0 jika uang fisik atau saldo rekening kas kosong.</Text>
+        <Text style={styles.helper}>Kedua field wajib diisi setiap hari. Masukkan angka 0 jika saldo kas tunai atau non-tunai kosong.</Text>
       </GlassCard>
     </Screen>
   );
