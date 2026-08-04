@@ -7,6 +7,10 @@ import type {
   Transaction,
   ProductOption,
   InventoryItem,
+  ExpenseOverview,
+  ExpenseFundingSource,
+  NotificationFeed,
+  PushTestResult,
 } from '../types/domain';
 import { apiFileRequest, apiRequest } from './client';
 
@@ -26,7 +30,9 @@ export interface ProductInput {
   description: string;
   category: string;
   price: number;
-  stock: number | null;
+  resellerPrice?: number | null;
+  isResellerOnly?: boolean;
+  stock?: number | null;
   trackInventory: boolean;
   lowStockThreshold?: number;
   minimumOrderQuantity?: number;
@@ -62,17 +68,41 @@ export const saleService = {
     method: 'POST',
     body: { reason, managerPin },
   }),
+  settle: (id: string, shiftId: string, paymentMethod: NonNullable<Transaction['paymentMethod']>, amountPaid: number) =>
+    apiRequest<Transaction>(`/sales/${id}/settlement`, {
+      method: 'POST',
+      body: { shiftId, paymentMethod, amountPaid },
+    }),
 };
 
 export const shiftService = {
   current: () => apiRequest<Shift | null>('/shifts/current'),
-  open: (openingCash: number, terminalId: string) => apiRequest<Shift>('/shifts', {
+  open: (openingCash: number, openingBankBalance: number, terminalId: string) => apiRequest<Shift>('/shifts', {
     method: 'POST',
-    body: { openingCash, terminalId },
+    body: { openingBankBalance, openingCash, terminalId },
   }),
+  updateOpeningBalances: (id: string, openingCash: number, openingBankBalance: number) =>
+    apiRequest<Shift>(`/shifts/${id}/opening-balances`, {
+      method: 'PATCH',
+      body: { openingBankBalance, openingCash },
+    }),
   close: (id: string, closingCash: number) => apiRequest<Shift>(`/shifts/${id}/close`, {
     method: 'POST',
     body: { closingCash },
+  }),
+};
+
+export const expenseService = {
+  list: (shiftId: string) => apiRequest<ExpenseOverview>(`/expenses?shiftId=${encodeURIComponent(shiftId)}`),
+  create: (payload: { idempotencyKey: string; shiftId: string; name: string; amount: number; fundingSource: ExpenseFundingSource }) =>
+    apiRequest<ExpenseOverview>('/expenses', {
+      method: 'POST',
+      body: payload,
+      headers: { 'Idempotency-Key': payload.idempotencyKey },
+    }),
+  cancel: (id: string, reason: string) => apiRequest<ExpenseOverview>(`/expenses/${id}/cancellations`, {
+    method: 'POST',
+    body: { reason },
   }),
 };
 
@@ -83,6 +113,25 @@ export const inventoryService = {
       method: 'POST',
       body: { inventoryItemId, quantity, reason, mode },
     }),
+};
+
+export const notificationService = {
+  list: (kind?: 'sale_created' | 'stock_adjusted') => apiRequest<NotificationFeed>(
+    `/notifications?limit=100${kind ? `&kind=${encodeURIComponent(kind)}` : ''}`,
+  ),
+  read: (id: string) => apiRequest<NotificationFeed['items'][number]>(`/notifications/${id}/read`, {
+    method: 'POST',
+  }),
+  readAll: () => apiRequest<{ updatedCount: number; unreadCount: number }>('/notifications/read-all', {
+    method: 'POST',
+  }),
+  registerDevice: (payload: { expoPushToken: string; platform: 'android' | 'ios'; deviceName?: string | null }) =>
+    apiRequest<{ id: string; isActive: boolean }>('/notification-devices', { method: 'POST', body: payload }),
+  unregisterDevice: (expoPushToken: string) => apiRequest<void>('/notification-devices/unregister', {
+    method: 'POST',
+    body: { expoPushToken },
+  }),
+  testPush: () => apiRequest<PushTestResult>('/notification-devices/test', { method: 'POST' }),
 };
 
 export const promotionService = {
@@ -106,7 +155,7 @@ export interface SalesSummary {
   netMarginPercent: number | null;
   previousPeriodGrowthPercent: number | null;
   series: { label: string; value: number }[];
-  paymentBreakdown: { method: Transaction['paymentMethod']; value: number; transactionCount: number }[];
+  paymentBreakdown: { method: NonNullable<Transaction['paymentMethod']>; value: number; transactionCount: number }[];
   topProducts: { productId: string; name: string; sold: number; revenue: number }[];
 }
 

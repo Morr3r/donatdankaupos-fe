@@ -40,11 +40,15 @@ Tambahkan `POST /auth/refresh`, `POST /auth/logout`, dan `GET /me`. Role: `cashi
 | GET | `/products?active=true&outlet_id=...` | Katalog, harga, kategori, dan stok outlet |
 | POST | `/shifts` | Buka shift dengan `opening_cash` dan terminal |
 | GET | `/shifts/current` | Pulihkan shift aktif perangkat/user |
+| PATCH | `/shifts/{id}/opening-balances` | Ubah uang fisik awal dan saldo rekening kas pada shift aktif |
 | POST | `/shifts/{id}/close` | Tutup shift dan rekonsiliasi |
 | POST | `/sales` | Buat transaksi atomik |
 | GET | `/sales` | Filter tanggal, status, metode bayar, query, cursor |
 | GET | `/sales/{id}` | Detail transaksi/struk |
 | POST | `/sales/{id}/refunds` | Refund dengan manager approval + reason |
+| GET | `/expenses?shiftId=...` | Riwayat dan saldo pengeluaran shift |
+| POST | `/expenses` | Catat pengeluaran dari rekening kas atau uang fisik |
+| POST | `/expenses/{id}/cancellations` | Batalkan pengeluaran dan kembalikan saldo sumber dana |
 | GET | `/inventory-items` | Empat kelompok stok fisik per pcs |
 | POST | `/inventory-adjustments` | Stock opname/restock kelompok stok dengan audit trail |
 | GET | `/reports/sales-summary` | KPI dan time series periode |
@@ -52,11 +56,25 @@ Tambahkan `POST /auth/refresh`, `POST /auth/logout`, dan `GET /me`. Role: `cashi
 | POST | `/reports/exports` | Buat file CSV/XLSX/PDF |
 | POST | `/sync/batch` | Terima event offline berurutan |
 
+Shift mengikuti hari operasional `Asia/Jakarta`. Setelah tanggal berganti, shift lama ditutup
+otomatis tanpa membuat shift baru; kasir wajib mengisi `openingCash` untuk uang fisik dan
+`openingBankBalance` untuk saldo rekening sebelum penjualan dapat dilanjutkan. Nilai `0`
+valid untuk masing-masing saldo, tetapi kedua field tidak boleh dilewati pada aplikasi.
+Pengeluaran baru mengirim `fundingSource` (`bank` atau `cash`) agar kasir dapat memilih dana dari
+saldo rekening kas atau uang fisik. Hasil penjualan non-tunai tetap tidak menambah saldo rekening
+kas yang tersedia untuk pengeluaran. `POST /expenses/{id}/cancellations` menerima `reason`,
+menandai catatan sebagai dibatalkan, dan mengembalikan nominal ke sumber dana asal. Catatan tidak
+dihapus permanen agar jejak audit tetap tersedia.
+
 Respons `/reports/sales-summary` menyertakan `pieceCount`, `costPerItem`, `costOfGoodsSold`,
 `netProfit`, dan `netMarginPercent`. HPP saat ini dipukul rata Rp2.650 per pcs donat
 untuk seluruh produk dan topping. Paket isi 6/12 dikonversi ke jumlah pcs sebelum HPP dihitung.
 Setiap respons transaksi juga menyertakan `pieceCount`, `costPerItem`, `costOfGoodsSold`,
 `netProfit`, dan `netMarginPercent`. `netProfit` dihitung sebagai total transaksi dikurangi total HPP.
+
+Setiap produk dapat memiliki `resellerPrice` (integer rupiah atau `null`). Produk dengan nilai
+`null` tidak tersedia pada mode harga reseller. Harga pelanggan tetap memakai `price`.
+Produk dengan `isResellerOnly: true` hanya ditampilkan dan dapat dijual pada mode reseller.
 
 ## Create sale
 
@@ -69,6 +87,7 @@ Setiap respons transaksi juga menyertakan `pieceCount`, `costPerItem`, `costOfGo
   "items": [{ "lineId": "line_x", "productId": "prd_001", "name": "Dankau Berry", "price": 14000, "quantity": 2 }],
   "orderType": "takeaway",
   "paymentMethod": "qris",
+  "pricingMode": "reseller",
   "customerName": "Kak Rani",
   "discount": 0,
   "amountPaid": 31080,
@@ -76,7 +95,11 @@ Setiap respons transaksi juga menyertakan `pieceCount`, `costPerItem`, `costOfGo
 }
 ```
 
-Server tidak boleh memercayai harga/tax/discount dari client. Hitung ulang dari price book, promotion rule, dan konfigurasi pajak; kembalikan `409 PRICE_CHANGED` bila kasir perlu mengonfirmasi total baru. Kurangi stok dan buat payment/sale lines dalam satu database transaction.
+Server tidak boleh memercayai harga/tax/discount dari client. Hitung ulang dari price book sesuai
+`pricingMode` (`customer` atau `reseller`), promotion rule, dan konfigurasi pajak; kembalikan
+`409 PRICE_CHANGED` bila kasir perlu mengonfirmasi total baru. Untuk mode reseller, tolak produk
+tanpa `resellerPrice` dengan `409 RESELLER_PRICE_UNAVAILABLE`. Kurangi stok dan buat payment/sale
+lines dalam satu database transaction.
 
 ## Bentuk error
 

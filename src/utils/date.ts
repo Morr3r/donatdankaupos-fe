@@ -7,6 +7,32 @@ export interface DateRangeSelection {
   to: Date;
 }
 
+const JAKARTA_TIME_ZONE = 'Asia/Jakarta';
+const jakartaDateKeyFormatter = new Intl.DateTimeFormat('en-CA', {
+  day: '2-digit',
+  month: '2-digit',
+  timeZone: JAKARTA_TIME_ZONE,
+  year: 'numeric',
+});
+
+export const toJakartaDateKey = (value: Date | string = new Date()) => {
+  const parsed = typeof value === 'string' ? new Date(value) : value;
+  if (Number.isNaN(parsed.getTime())) return '';
+  const parts = jakartaDateKeyFormatter.formatToParts(parsed);
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? '';
+  return `${part('year')}-${part('month')}-${part('day')}`;
+};
+
+export const formatJakartaBusinessDate = (value: Date = new Date()) => (
+  new Intl.DateTimeFormat('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    timeZone: JAKARTA_TIME_ZONE,
+    weekday: 'long',
+    year: 'numeric',
+  }).format(value)
+);
+
 export const startOfDay = (value: Date) => new Date(value.getFullYear(), value.getMonth(), value.getDate());
 
 export const endOfDay = (value: Date) => new Date(value.getFullYear(), value.getMonth(), value.getDate(), 23, 59, 59, 999);

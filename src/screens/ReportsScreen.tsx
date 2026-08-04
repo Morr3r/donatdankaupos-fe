@@ -64,7 +64,7 @@ export function ReportsScreen() {
       file.write(result.bytes);
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(file.uri, {
-          dialogTitle: 'Simpan atau bagikan laporan penjualan',
+          dialogTitle: 'Simpan atau bagikan laporan operasional',
           mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
           UTI: 'org.openxmlformats.spreadsheetml.sheet',
         });
@@ -96,7 +96,7 @@ export function ReportsScreen() {
       <Header eyebrow="Ringkasan outlet" subtitle="Hanya transaksi berhasil yang masuk perhitungan" title="Laporan" />
       <View style={styles.filterToolbar}>
         <View style={styles.periodFilter}><DateRangePicker onChange={setRange} value={range} /></View>
-        <Button icon={FileSpreadsheet} label="Export Excel" loading={exporting} onPress={exportExcel} style={styles.exportButton} variant="secondary" />
+        <Button icon={FileSpreadsheet} label="Export Excel Lengkap" loading={exporting} onPress={exportExcel} style={styles.exportButton} variant="secondary" />
       </View>
       {error ? <View style={[styles.errorPanel, compact && styles.errorPanelCompact]}><Text accessibilityLiveRegion="polite" style={styles.error}>{error}</Text><Button compact icon={RefreshCw} label="Coba lagi" onPress={loadReport} style={compact ? styles.retryButtonCompact : undefined} variant="secondary" /></View> : null}
 

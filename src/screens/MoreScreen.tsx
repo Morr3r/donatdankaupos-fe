@@ -1,6 +1,6 @@
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ChevronRight, Donut, LogOut, PackageOpen, RefreshCw, Settings, ShieldCheck, Store, UserRound, WalletCards } from 'lucide-react-native';
+import { BellRing, ChevronRight, Donut, LogOut, PackageOpen, ReceiptText, RefreshCw, Settings, ShieldCheck, Store, UserRound, WalletCards } from 'lucide-react-native';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { BrandLogo, Button, GlassCard, Header, ScalePressable, Screen, SectionHeader, StatusPill } from '../components/ui';
 import type { RootStackParamList } from '../navigation/types';
@@ -8,6 +8,14 @@ import { useOperationsStore } from '../store/operationsStore';
 import { useCatalogStore } from '../store/catalogStore';
 import { useSessionStore } from '../store/sessionStore';
 import { palette, radius, spacing, type } from '../theme/tokens';
+import { useNotificationStore } from '../store/notificationStore';
+
+const roleLabels = {
+  cashier: 'Kasir',
+  staff: 'Staff',
+  manager: 'Manager',
+  owner: 'Owner',
+} as const;
 
 export function MoreScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -16,6 +24,8 @@ export function MoreScreen() {
   const shift = useOperationsStore((state) => state.shift);
   const refreshTransactions = useOperationsStore((state) => state.refreshTransactions);
   const loadCatalog = useCatalogStore((state) => state.load);
+  const unreadNotifications = useNotificationStore((state) => state.unreadCount);
+  const canManageProducts = user?.role === 'staff' || user?.role === 'manager' || user?.role === 'owner';
 
   const handleLogout = () => {
     if (shift?.status === 'open') {
@@ -31,14 +41,16 @@ export function MoreScreen() {
 
       <GlassCard dark contentStyle={styles.profileCard}>
         <View style={styles.avatar}><UserRound color={palette.white} size={27} /></View>
-        <View style={styles.profileCopy}><Text style={styles.profileName}>{user?.name}</Text><Text style={styles.profileEmail}>{user?.email}</Text><View style={styles.profileBadges}><StatusPill label={user?.role ?? 'Pengguna'} tone="info" /><StatusPill label={shift?.status === 'open' ? 'Shift aktif' : 'Shift tutup'} tone={shift?.status === 'open' ? 'success' : 'warning'} /></View></View>
+        <View style={styles.profileCopy}><Text style={styles.profileName}>{user?.name}</Text><Text style={styles.profileEmail}>{user?.email}</Text><View style={styles.profileBadges}><StatusPill label={user ? roleLabels[user.role] : 'Pengguna'} tone="info" /><StatusPill label={shift?.status === 'open' ? 'Shift aktif' : 'Shift tutup'} tone={shift?.status === 'open' ? 'success' : 'warning'} /></View></View>
       </GlassCard>
 
       <SectionHeader title="Operasional" />
       <GlassCard contentStyle={styles.menuCard}>
-        <MenuRow icon={WalletCards} label="Shift & kas laci" onPress={() => navigation.navigate('Shift')} subtitle="Buka, tutup, dan rekonsiliasi" />
+        <MenuRow icon={WalletCards} label="Shift & kas harian" onPress={() => navigation.navigate('Shift')} subtitle="Kas tunai, non-tunai, dan rekonsiliasi" />
+        <MenuRow icon={ReceiptText} label="Pengeluaran" onPress={() => navigation.navigate('Expenses')} subtitle="Catat biaya dan pantau saldo kas" />
         <MenuRow icon={PackageOpen} label="Stok produk" onPress={() => navigation.navigate('Inventory')} subtitle="Pantau stok menipis dan habis" />
-        {user?.role !== 'cashier' ? <MenuRow icon={Donut} label="Kelola produk" onPress={() => navigation.navigate('Products')} subtitle="Edit menu, harga, foto, varian, dan topping" /> : null}
+        <MenuRow icon={BellRing} label="Notification Center" onPress={() => navigation.navigate('Notifications')} subtitle={unreadNotifications ? `${unreadNotifications} sinyal baru menunggu perhatian` : 'Aktivitas owner dan staff tersinkron'} />
+        {canManageProducts ? <MenuRow icon={Donut} label="Kelola produk" onPress={() => navigation.navigate('Products')} subtitle="Edit menu, harga, foto, varian, dan topping" /> : null}
         <MenuRow icon={RefreshCw} label="Segarkan data" onPress={async () => {
           try {
             await Promise.all([refreshTransactions(), loadCatalog()]);

@@ -24,6 +24,10 @@ export const palette = {
   info: '#3A68A0',
   infoSoft: '#E3EDF9',
   scrim: 'rgba(31, 18, 13, 0.55)',
+  obsidian: '#18100D',
+  obsidianSoft: '#2A1A15',
+  champagne: '#F3C56B',
+  champagneSoft: '#FFF0C8',
 } as const;
 
 export const spacing = {
@@ -88,4 +92,5 @@ export const gradients = {
   gold: ['#F3C56B', '#D99725'] as const,
   rose: ['#F5B5C6', '#E789A1'] as const,
   success: ['#3C9B72', '#237552'] as const,
+  notification: ['#17100D', '#322019', '#5A3024'] as const,
 } as const;

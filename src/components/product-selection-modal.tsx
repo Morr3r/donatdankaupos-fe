@@ -2,8 +2,8 @@ import { Minus, Plus, ShoppingBag } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 import { palette, radius, spacing, type } from '../theme/tokens';
-import type { Product, ProductOption } from '../types/domain';
-import { formatCurrency, resolvePiecesPerUnit } from '../utils/format';
+import type { PricingMode, Product, ProductOption } from '../types/domain';
+import { formatCurrency, getProductPrice, resolvePiecesPerUnit } from '../utils/format';
 import { Button, Chip, Field, FormModal, ScalePressable } from './ui';
 
 export interface ProductSelectionValue {
@@ -13,8 +13,9 @@ export interface ProductSelectionValue {
   note?: string;
 }
 
-export function ProductSelectionModal({ product, onClose, onAdd }: {
+export function ProductSelectionModal({ product, pricingMode, onClose, onAdd }: {
   product: Product | null;
+  pricingMode: PricingMode;
   onClose: () => void;
   onAdd: (product: Product, selection: ProductSelectionValue) => void;
 }) {
@@ -34,7 +35,7 @@ export function ProductSelectionModal({ product, onClose, onAdd }: {
   const toppings = product?.toppings ?? [];
   const selectedVariants = variants.filter((item) => variantIds.includes(item.id));
   const selectedToppings = toppings.filter((item) => toppingIds.includes(item.id));
-  const unitPrice = (product?.price ?? 0)
+  const unitPrice = (product ? getProductPrice(product, pricingMode) : 0)
     + selectedVariants.reduce((sum, item) => sum + item.priceDelta, 0)
     + selectedToppings.reduce((sum, item) => sum + item.priceDelta, 0);
   const minimumQuantity = Math.max(product?.minimumOrderQuantity ?? 1, 1);
@@ -81,7 +82,7 @@ export function ProductSelectionModal({ product, onClose, onAdd }: {
     >
       {product.imageUrl ? <Image accessibilityIgnoresInvertColors source={{ uri: product.imageUrl }} style={styles.image} /> : null}
       <View style={styles.priceRow}>
-        <View><Text style={styles.priceLabel}>Harga per {piecesPerUnit > 1 ? 'paket' : 'pcs'}</Text><Text style={styles.price}>{formatCurrency(unitPrice)}</Text>{piecesPerUnit > 1 ? <Text style={styles.piecesNote}>1 paket = {piecesPerUnit} pcs donat</Text> : null}</View>
+        <View><Text style={styles.priceLabel}>Harga {pricingMode === 'reseller' ? 'reseller' : 'pelanggan'} per {piecesPerUnit > 1 ? 'paket' : 'pcs'}</Text><Text style={styles.price}>{formatCurrency(unitPrice)}</Text>{piecesPerUnit > 1 ? <Text style={styles.piecesNote}>1 paket = {piecesPerUnit} pcs donat</Text> : null}</View>
         <View style={styles.stepper}>
           <ScalePressable accessibilityLabel="Kurangi jumlah" disabled={quantity <= minimumQuantity} onPress={() => setQuantity((value) => Math.max(minimumQuantity, value - 1))} style={styles.stepButton}><Minus color={palette.cocoa} size={19} /></ScalePressable>
           <Text style={styles.quantity}>{quantity}</Text>

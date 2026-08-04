@@ -1,10 +1,11 @@
-import { Minus, Plus, ShoppingBag, Trash2 } from 'lucide-react-native';
+import { BlurView } from 'expo-blur';
+import { Check, Handshake, Minus, Plus, ShoppingBag, Trash2, UserRound } from 'lucide-react-native';
 import { memo } from 'react';
 import { Image, Platform, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
-import type { CartItem, Product } from '../types/domain';
+import type { CartItem, PricingMode, Product } from '../types/domain';
 import { palette, radius, shadow, spacing, type } from '../theme/tokens';
 import { selectedOptionSummary } from '../utils/cartOptions';
-import { formatCurrency, formatPackagingLabel, resolvePiecesPerUnit } from '../utils/format';
+import { formatCurrency, formatPackagingLabel, getProductPrice, resolvePiecesPerUnit } from '../utils/format';
 import { GlassCard, ScalePressable, StatusPill } from './ui';
 
 interface ProductCardProps {
@@ -13,9 +14,10 @@ interface ProductCardProps {
   onPress: (product: Product) => void;
   style?: StyleProp<ViewStyle>;
   horizontal?: boolean;
+  pricingMode?: PricingMode;
 }
 
-export const ProductCard = memo(function ProductCard({ product, cartQuantity = 0, onPress, style, horizontal = false }: ProductCardProps) {
+export const ProductCard = memo(function ProductCard({ product, cartQuantity = 0, onPress, style, horizontal = false, pricingMode = 'customer' }: ProductCardProps) {
   const minimumQuantity = Math.max(product.minimumOrderQuantity ?? 1, 1);
   const piecesPerUnit = resolvePiecesPerUnit(product.piecesPerUnit, product.name, product.sourcePackaging);
   const packagingLabel = formatPackagingLabel(product.sourcePackaging, piecesPerUnit);
@@ -23,9 +25,11 @@ export const ProductCard = memo(function ProductCard({ product, cartQuantity = 0
   const soldOut = product.trackInventory && (product.stock ?? 0) < minimumPieces;
   const stockLabel = product.trackInventory ? `stok ${product.inventoryItemName ?? 'donat'} ${product.stock ?? 0} pcs` : 'tersedia';
   const cartLabel = cartQuantity > 0 ? `, ${cartQuantity} item di keranjang` : '';
+  const activePrice = getProductPrice(product, pricingMode);
+  const isReseller = pricingMode === 'reseller';
   return (
     <ScalePressable
-      accessibilityLabel={`${product.name}, ${formatCurrency(product.price)}, ${stockLabel}${cartLabel}`}
+      accessibilityLabel={`${product.name}, harga ${isReseller ? 'reseller' : 'pelanggan'} ${formatCurrency(activePrice)}, ${stockLabel}${cartLabel}`}
       accessibilityHint={soldOut ? 'Produk sedang habis' : 'Tambahkan ke keranjang'}
       containerStyle={style}
       disabled={soldOut}
@@ -47,7 +51,13 @@ export const ProductCard = memo(function ProductCard({ product, cartQuantity = 0
         {packagingLabel ? <Text style={styles.productPackaging}>{packagingLabel}</Text> : null}
         <Text numberOfLines={2} style={styles.productDescription}>{product.description}</Text>
         <View style={[styles.productFooter, horizontal && styles.productFooterHorizontal]}>
-          <Text style={styles.productPrice}>{formatCurrency(product.price)}</Text>
+          <View style={styles.productPriceGroup}>
+            <Text style={styles.productPriceLabel}>Harga {isReseller ? 'reseller' : 'pelanggan'}</Text>
+            <View style={styles.productPriceLine}>
+              <Text style={styles.productPrice}>{formatCurrency(activePrice)}</Text>
+              {isReseller && product.price !== activePrice ? <Text style={styles.productOriginalPrice}>{formatCurrency(product.price)}</Text> : null}
+            </View>
+          </View>
           <StatusPill
             label={product.trackInventory
               ? (product.stock ?? 0) <= product.lowStockThreshold ? `Sisa ${product.stock ?? 0} pcs` : `Stok ${product.stock ?? 0} pcs`
@@ -59,6 +69,57 @@ export const ProductCard = memo(function ProductCard({ product, cartQuantity = 0
     </ScalePressable>
   );
 });
+
+export function PricingModeSelector({ value, resellerCount, onChange, compact = false }: {
+  value: PricingMode;
+  resellerCount: number;
+  onChange: (mode: PricingMode) => void;
+  compact?: boolean;
+}) {
+  const options: { id: PricingMode; label: string; helper: string; icon: typeof UserRound }[] = [
+    { id: 'customer', label: 'Pelanggan', helper: 'Harga reguler', icon: UserRound },
+    { id: 'reseller', label: 'Reseller', helper: 'Harga khusus', icon: Handshake },
+  ];
+
+  return (
+    <BlurView intensity={74} tint="light" style={[styles.pricingModeShell, compact && styles.pricingModeShellCompact]}>
+      {!compact ? <View style={styles.pricingModeHeading}>
+        <View style={styles.pricingModeCopy}>
+          <Text style={styles.pricingModeTitle}>Pilih jenis harga</Text>
+          <Text style={styles.pricingModeSubtitle}>Satu pilihan berlaku untuk seluruh transaksi.</Text>
+        </View>
+        <View style={styles.pricingActiveMark}><Check color={palette.success} size={15} strokeWidth={2.5} /></View>
+      </View> : null}
+      <View accessibilityRole="tablist" style={[styles.pricingModeTrack, compact && styles.pricingModeTrackCompact]}>
+        {options.map(({ id, label, helper, icon: Icon }) => {
+          const selected = value === id;
+          return (
+            <ScalePressable
+              key={id}
+              accessibilityLabel={`Gunakan harga ${label.toLowerCase()}`}
+              accessibilityRole="tab"
+              accessibilityState={{ selected }}
+              containerStyle={styles.pricingModeOptionContainer}
+              onPress={() => onChange(id)}
+              style={[styles.pricingModeOption, compact && styles.pricingModeOptionCompact, selected && styles.pricingModeOptionSelected]}
+            >
+              <View style={[styles.pricingModeIcon, compact && styles.pricingModeIconCompact, selected && styles.pricingModeIconSelected]}>
+                <Icon color={selected ? palette.white : palette.cocoa} size={19} strokeWidth={2} />
+              </View>
+              <View style={styles.pricingModeOptionCopy}>
+                <Text style={[styles.pricingModeOptionLabel, selected && styles.pricingModeOptionLabelSelected]}>{label}</Text>
+                {!compact ? <Text style={[styles.pricingModeOptionHelper, selected && styles.pricingModeOptionHelperSelected]}>{helper}</Text> : null}
+              </View>
+            </ScalePressable>
+          );
+        })}
+      </View>
+      {!compact ? <Text accessibilityLiveRegion="polite" style={styles.pricingModeSummary}>
+        {value === 'reseller' ? `${resellerCount} produk dengan harga reseller tersedia` : 'Seluruh katalog memakai harga pelanggan'}
+      </Text> : null}
+    </BlurView>
+  );
+}
 
 interface CartRowProps {
   item: CartItem;
@@ -93,12 +154,12 @@ export const CartRow = memo(function CartRow({ item, onChange, onRemove }: CartR
   );
 });
 
-export function CartFloatingBar({ count, total, onPress, onClear, compact = false }: { count: number; total: number; onPress: () => void; onClear: () => void; compact?: boolean }) {
+export function CartFloatingBar({ count, total, pricingMode, onPress, onClear, compact = false }: { count: number; total: number; pricingMode: PricingMode; onPress: () => void; onClear: () => void; compact?: boolean }) {
   return (
-    <GlassCard style={styles.cartFloating} contentStyle={[styles.cartFloatingInner, compact && styles.cartFloatingInnerCompact]} intensity={70}>
+    <GlassCard style={[styles.cartFloating, compact && styles.cartFloatingCompact]} contentStyle={[styles.cartFloatingInner, compact && styles.cartFloatingInnerCompact]}>
       {!compact ? <View style={styles.cartIcon}><ShoppingBag color={palette.white} size={20} /></View> : null}
       <View style={styles.cartFloatingCopy}>
-        <Text numberOfLines={1} style={styles.cartFloatingLabel}>{count} item di keranjang</Text>
+        <Text numberOfLines={1} style={styles.cartFloatingLabel}>{count} item · {pricingMode === 'reseller' ? 'Harga reseller' : 'Harga pelanggan'}</Text>
         <Text adjustsFontSizeToFit numberOfLines={1} style={styles.cartFloatingTotal}>{formatCurrency(total)}</Text>
       </View>
       <ScalePressable accessibilityHint="Menghapus semua item yang sudah dipilih" accessibilityLabel="Kosongkan keranjang" onPress={onClear} style={styles.cartClearAction}>
@@ -112,7 +173,7 @@ export function CartFloatingBar({ count, total, onPress, onClear, compact = fals
 }
 
 const styles = StyleSheet.create({
-  productCard: { flex: 1, borderRadius: radius.lg, backgroundColor: 'rgba(255,255,255,0.82)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.9)', overflow: 'hidden', ...shadow.glass },
+  productCard: { flex: 1, borderRadius: radius.lg, backgroundColor: 'rgba(255,255,255,0.82)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.9)', overflow: 'hidden' },
   productCardHorizontal: { minHeight: 148, flexDirection: 'row' },
   productVisual: { height: 112, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   productVisualHorizontal: { width: 124, height: '100%', minHeight: 148, flexShrink: 0 },
@@ -131,7 +192,7 @@ const styles = StyleSheet.create({
   },
   donutGlaze: { position: 'absolute', width: 54, height: 22, top: 10, left: 9, backgroundColor: 'rgba(255,255,255,0.26)', borderRadius: radius.pill, transform: [{ rotate: '-10deg' }] },
   donutHole: { width: 24, height: 24, borderRadius: 12, borderWidth: 4, borderColor: 'rgba(255,255,255,0.3)' },
-  cartQuantityBadge: { position: 'absolute', top: spacing.sm, left: spacing.sm, minWidth: 30, height: 30, paddingHorizontal: 8, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.cocoaDark, borderWidth: 2, borderColor: palette.white, ...shadow.glass },
+  cartQuantityBadge: { position: 'absolute', top: spacing.sm, left: spacing.sm, minWidth: 30, height: 30, paddingHorizontal: 8, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.cocoaDark, borderWidth: 2, borderColor: palette.white },
   cartQuantityText: { color: palette.white, fontFamily: type.bold, fontSize: 12, fontVariant: ['tabular-nums'] },
   favoriteBadge: { position: 'absolute', top: spacing.sm, right: spacing.sm, minHeight: 25, paddingHorizontal: 8, borderRadius: radius.pill, backgroundColor: 'rgba(55,30,22,0.84)', justifyContent: 'center' },
   favoriteText: { color: palette.white, fontFamily: type.bold, fontSize: 9, letterSpacing: 0.8 },
@@ -141,8 +202,34 @@ const styles = StyleSheet.create({
   productPackaging: { color: palette.cocoa, fontFamily: type.semibold, fontSize: 10, marginTop: -1 },
   productDescription: { minHeight: 34, color: palette.muted, fontFamily: type.regular, fontSize: 11, lineHeight: 16 },
   productFooter: { marginTop: 2, gap: spacing.xs, alignItems: 'flex-start' },
-  productFooterHorizontal: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  productFooterHorizontal: { alignItems: 'flex-start' },
+  productPriceGroup: { gap: 2 },
+  productPriceLabel: { color: palette.muted, fontFamily: type.medium, fontSize: 9 },
+  productPriceLine: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', gap: 6 },
   productPrice: { color: palette.cocoa, fontFamily: type.bold, fontSize: 14 },
+  productOriginalPrice: { color: palette.muted, fontFamily: type.medium, fontSize: 10, textDecorationLine: 'line-through' },
+  pricingModeShell: { marginBottom: spacing.md, padding: spacing.sm, borderRadius: radius.xl, borderCurve: 'continuous', overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.92)', backgroundColor: 'rgba(255,255,255,0.38)' },
+  pricingModeShellCompact: { marginBottom: 0, padding: spacing.xxs, borderRadius: radius.lg },
+  pricingModeHeading: { minHeight: 42, paddingHorizontal: spacing.xs, paddingBottom: spacing.xs, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  pricingModeCopy: { flex: 1 },
+  pricingModeTitle: { color: palette.ink, fontFamily: type.bold, fontSize: 14 },
+  pricingModeSubtitle: { color: palette.muted, fontFamily: type.regular, fontSize: 10, lineHeight: 15, marginTop: 2 },
+  pricingActiveMark: { width: 32, height: 32, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.successSoft, borderWidth: 1, borderColor: 'rgba(38,122,85,0.12)' },
+  pricingModeTrack: { width: '100%', maxWidth: 540, flexDirection: 'row', gap: spacing.xs, padding: spacing.xxs, borderRadius: radius.lg, borderCurve: 'continuous', backgroundColor: 'rgba(86,49,31,0.07)', borderWidth: 1, borderColor: 'rgba(86,49,31,0.08)' },
+  pricingModeTrackCompact: { gap: spacing.xxs, padding: 2, borderRadius: radius.md },
+  pricingModeOptionContainer: { flex: 1, minWidth: 0 },
+  pricingModeOption: { flex: 1, minHeight: 62, paddingHorizontal: spacing.sm, borderRadius: radius.md, borderCurve: 'continuous', flexDirection: 'row', alignItems: 'center', gap: spacing.xs, backgroundColor: 'rgba(255,255,255,0.38)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.46)' },
+  pricingModeOptionCompact: { minHeight: 42, paddingHorizontal: spacing.xs, gap: 6, borderRadius: radius.sm },
+  pricingModeOptionSelected: { backgroundColor: palette.cocoaDark, borderColor: 'rgba(255,255,255,0.18)' },
+  pricingModeIcon: { width: 38, height: 38, flexShrink: 0, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.68)' },
+  pricingModeIconCompact: { width: 32, height: 32, borderRadius: 11 },
+  pricingModeIconSelected: { backgroundColor: 'rgba(255,255,255,0.14)' },
+  pricingModeOptionCopy: { flex: 1, minWidth: 0 },
+  pricingModeOptionLabel: { color: palette.ink, fontFamily: type.bold, fontSize: 13 },
+  pricingModeOptionLabelSelected: { color: palette.white },
+  pricingModeOptionHelper: { color: palette.muted, fontFamily: type.medium, fontSize: 9, marginTop: 2 },
+  pricingModeOptionHelperSelected: { color: 'rgba(255,255,255,0.68)' },
+  pricingModeSummary: { color: palette.cocoa, fontFamily: type.semibold, fontSize: 10, lineHeight: 15, paddingHorizontal: spacing.xs, paddingTop: spacing.xs },
   cartRow: { minHeight: 74, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm },
   cartIndex: { width: 34, height: 34, borderRadius: 12, backgroundColor: palette.roseSoft, alignItems: 'center', justifyContent: 'center' },
   cartIndexText: { color: palette.cocoa, fontFamily: type.bold, fontSize: 13 },
@@ -155,8 +242,9 @@ const styles = StyleSheet.create({
   quantityButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   quantityText: { minWidth: 24, color: palette.ink, textAlign: 'center', fontFamily: type.bold, fontSize: 13 },
   cartFloating: { marginTop: spacing.lg, borderRadius: radius.xl, ...shadow.floating },
+  cartFloatingCompact: { marginTop: 0, borderRadius: radius.lg },
   cartFloatingInner: { minHeight: 76, padding: spacing.sm, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  cartFloatingInnerCompact: { gap: spacing.xs },
+  cartFloatingInnerCompact: { minHeight: 56, padding: spacing.xxs, gap: spacing.xs, backgroundColor: 'rgba(255,253,249,0.96)' },
   cartIcon: { width: 48, height: 48, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.cocoaDark },
   cartFloatingCopy: { flex: 1, minWidth: 0 },
   cartFloatingLabel: { color: palette.muted, fontFamily: type.medium, fontSize: 11 },

@@ -1,7 +1,7 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Edit3, ImageOff, Plus, Search, Trash2 } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
-import { Alert, FlatList, Image, type ImageStyle, Platform, ScrollView, type StyleProp, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Alert, FlatList, Image, type ImageStyle, Platform, ScrollView, type StyleProp, StyleSheet, Text, View } from 'react-native';
 import { catalogService } from '../api/services';
 import { Button, Chip, GlassCard, Header, IconButton, Screen, SearchField, StatusPill } from '../components/ui';
 import type { RootStackParamList } from '../navigation/types';
@@ -9,12 +9,14 @@ import { useCatalogStore } from '../store/catalogStore';
 import { palette, radius, spacing, type } from '../theme/tokens';
 import type { Product } from '../types/domain';
 import { formatCurrency } from '../utils/format';
+import { useResponsiveLayout } from '../utils/responsive';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Products'>;
 
 export function ProductManagementScreen({ navigation }: Props) {
-  const { width } = useWindowDimensions();
+  const { isLandscapePhone, width } = useResponsiveLayout();
   const isWide = width >= 960;
+  const isToolbarWide = isWide || isLandscapePhone;
   const products = useCatalogStore((state) => state.products);
   const isLoading = useCatalogStore((state) => state.isLoading);
   const loadError = useCatalogStore((state) => state.error);
@@ -27,7 +29,9 @@ export function ProductManagementScreen({ navigation }: Props) {
     const term = query.trim().toLowerCase();
     return products.filter((product) => (
       (category === 'Semua' || product.category === category)
-      && (!term || product.name.toLowerCase().includes(term) || product.sku.toLowerCase().includes(term))
+      && (!term || [product.name, product.sku, product.category, product.sourcePackaging]
+        .filter(Boolean)
+        .some((value) => value?.toLowerCase().includes(term)))
     ));
   }, [category, products, query]);
 
@@ -58,10 +62,10 @@ export function ProductManagementScreen({ navigation }: Props) {
   };
 
   return (
-    <Screen contentStyle={styles.screen} scroll={false}>
+    <Screen bottomInset={spacing.md} contentStyle={[styles.screen, isLandscapePhone && styles.screenLandscape]} scroll={false}>
       <Header onBack={navigation.goBack} subtitle="Atur menu, harga, foto, varian, dan topping" title="Kelola produk" />
-      <View style={[styles.toolbar, isWide && styles.toolbarWide]}>
-        <View style={styles.search}><SearchField onChangeText={setQuery} placeholder="Cari nama atau SKU" value={query} /></View>
+      <View style={[styles.toolbar, isToolbarWide && styles.toolbarWide]}>
+        <View style={[styles.search, isToolbarWide && styles.searchWide]}><SearchField onChangeText={setQuery} placeholder="Cari nama, SKU, kategori, atau kemasan" value={query} /></View>
         <Button compact icon={Plus} label="Tambah produk" onPress={() => navigation.navigate('ProductEditor')} style={styles.addButton} />
       </View>
       <ScrollView contentContainerStyle={styles.categories} horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
@@ -79,6 +83,7 @@ export function ProductManagementScreen({ navigation }: Props) {
             data={filtered}
             keyExtractor={(item) => item.id}
             keyboardDismissMode="on-drag"
+            keyboardShouldPersistTaps="handled"
             ListEmptyComponent={<EmptyProducts />}
             onRefresh={load}
             refreshing={isLoading}
@@ -90,6 +95,7 @@ export function ProductManagementScreen({ navigation }: Props) {
               />
             )}
             showsVerticalScrollIndicator={false}
+            style={styles.productList}
           />
         </GlassCard>
       ) : (
@@ -98,6 +104,7 @@ export function ProductManagementScreen({ navigation }: Props) {
           data={filtered}
           keyExtractor={(item) => item.id}
           keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
           ListEmptyComponent={<EmptyProducts />}
           onRefresh={load}
           refreshing={isLoading}
@@ -109,6 +116,7 @@ export function ProductManagementScreen({ navigation }: Props) {
             />
           )}
           showsVerticalScrollIndicator={false}
+          style={styles.productList}
         />
       )}
     </Screen>
@@ -124,6 +132,7 @@ function ProductImage({ item, style }: { item: Product; style: StyleProp<ImageSt
 function ProductBadges({ item }: { item: Product }) {
   return (
     <View style={styles.badges}>
+      {item.resellerPrice != null ? <StatusPill label={item.isResellerOnly ? 'Khusus reseller' : 'Harga reseller aktif'} tone="info" /> : null}
       {item.minimumOrderQuantity > 1 ? <StatusPill label={`Min. ${item.minimumOrderQuantity} unit`} tone="warning" /> : null}
       {item.variants?.length ? <StatusPill label={`${item.variants.length} pilihan`} tone="info" /> : null}
       {item.toppings?.length ? <StatusPill label={`${item.toppings.length} topping`} tone="warning" /> : null}
@@ -141,7 +150,10 @@ function ProductMobileCard({ item, onEdit, onDelete }: { item: Product; onEdit: 
           <Text numberOfLines={2} style={styles.name}>{item.name}</Text>
           <Text style={styles.meta}>{item.sku} · {item.category}</Text>
           <Text style={styles.packaging}>{item.sourcePackaging || 'Kemasan belum diisi'}</Text>
-          <Text style={styles.price}>{formatCurrency(item.price)}</Text>
+          <View style={styles.priceGroup}>
+            <Text style={styles.price}>Pelanggan {formatCurrency(item.price)}</Text>
+            {item.resellerPrice != null ? <Text style={styles.resellerPrice}>Reseller {formatCurrency(item.resellerPrice)}</Text> : null}
+          </View>
         </View>
       </View>
       <ProductBadges item={item} />
@@ -159,7 +171,7 @@ function ProductTableHeader() {
       <Text style={[styles.tableHeaderText, styles.productColumn]}>Produk</Text>
       <Text style={[styles.tableHeaderText, styles.categoryColumn]}>Kategori</Text>
       <Text style={[styles.tableHeaderText, styles.packagingColumn]}>Kemasan</Text>
-      <Text style={[styles.tableHeaderText, styles.priceColumn]}>Harga</Text>
+      <Text style={[styles.tableHeaderText, styles.priceColumn]}>Harga pelanggan / reseller</Text>
       <Text style={[styles.tableHeaderText, styles.statusColumn]}>Status</Text>
       <Text style={[styles.tableHeaderText, styles.actionColumn]}>Aksi</Text>
     </View>
@@ -175,7 +187,10 @@ function ProductTableRow({ item, onEdit, onDelete }: { item: Product; onEdit: ()
       </View>
       <Text numberOfLines={2} style={[styles.tableCellText, styles.categoryColumn]}>{item.category}</Text>
       <Text numberOfLines={2} style={[styles.tableCellText, styles.packagingColumn]}>{item.sourcePackaging || '—'}</Text>
-      <Text style={[styles.tablePrice, styles.priceColumn]}>{formatCurrency(item.price)}</Text>
+      <View style={styles.priceColumn}>
+        <Text style={styles.tablePrice}>{formatCurrency(item.price)}</Text>
+        <Text style={styles.tableResellerPrice}>{item.resellerPrice != null ? formatCurrency(item.resellerPrice) : 'Tidak tersedia'}</Text>
+      </View>
       <View style={styles.statusColumn}><StatusPill label={item.minimumOrderQuantity > 1 ? `Min. ${item.minimumOrderQuantity}` : 'Aktif'} tone={item.minimumOrderQuantity > 1 ? 'warning' : 'success'} /></View>
       <View style={[styles.actionColumn, styles.tableActions]}><IconButton icon={Edit3} label={`Edit ${item.name}`} onPress={onEdit} /><IconButton icon={Trash2} label={`Hapus ${item.name}`} onPress={onDelete} tone="danger" /></View>
     </View>
@@ -187,15 +202,17 @@ function EmptyProducts() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, minWidth: 0, gap: spacing.md },
-  toolbar: { gap: spacing.sm },
+  screen: { flex: 1, minHeight: 0, minWidth: 0, gap: spacing.md },
+  screenLandscape: { gap: spacing.xs },
+  toolbar: { flexShrink: 0, gap: spacing.sm },
   toolbarWide: { flexDirection: 'row', alignItems: 'center' },
-  search: { flex: 1 },
-  addButton: { minWidth: 190 },
+  search: { width: '100%', flexShrink: 0 },
+  searchWide: { width: 'auto', flex: 1 },
+  addButton: { minWidth: 190, flexShrink: 0 },
   categoryScroll: {
     alignSelf: 'stretch',
     flexGrow: 0,
-    flexShrink: 1,
+    flexShrink: 0,
     minWidth: 0,
     maxWidth: '100%',
     minHeight: 50,
@@ -205,7 +222,8 @@ const styles = StyleSheet.create({
   resultBar: { minHeight: 28, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
   resultText: { color: palette.muted, fontFamily: type.semibold, fontSize: 11 },
   loadError: { flex: 1, color: palette.danger, fontFamily: type.medium, fontSize: 10, textAlign: 'right' },
-  list: { paddingBottom: spacing.xl },
+  productList: { flex: 1, minHeight: 0 },
+  list: { paddingBottom: spacing.xxl },
   card: { marginBottom: spacing.sm },
   mobileCard: { padding: spacing.md, gap: spacing.md },
   mobileTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
@@ -216,6 +234,8 @@ const styles = StyleSheet.create({
   meta: { color: palette.muted, fontFamily: type.regular, fontSize: 10, marginTop: 3 },
   packaging: { color: palette.inkSoft, fontFamily: type.medium, fontSize: 10, marginTop: 4 },
   price: { color: palette.cocoa, fontFamily: type.bold, fontSize: 13, marginTop: 6 },
+  priceGroup: { gap: 2 },
+  resellerPrice: { color: palette.success, fontFamily: type.semibold, fontSize: 11 },
   badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 6 },
   mobileActions: { flexDirection: 'row', gap: spacing.xs, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: palette.line },
   mobileAction: { flex: 1 },
@@ -229,13 +249,14 @@ const styles = StyleSheet.create({
   productColumn: { flex: 2.2, minWidth: 220 },
   categoryColumn: { flex: 1.15, minWidth: 120 },
   packagingColumn: { flex: 0.8, minWidth: 90 },
-  priceColumn: { width: 112 },
+  priceColumn: { width: 150 },
   statusColumn: { width: 100 },
   actionColumn: { width: 108 },
   tableProduct: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   tableProductCopy: { flex: 1, minWidth: 0 },
   tableImage: { width: 54, height: 54, borderRadius: radius.sm, resizeMode: 'cover' },
   tablePrice: { color: palette.cocoa, fontFamily: type.bold, fontSize: 12, fontVariant: ['tabular-nums'] },
+  tableResellerPrice: { color: palette.success, fontFamily: type.medium, fontSize: 10, marginTop: 3, fontVariant: ['tabular-nums'] },
   tableActions: { flexDirection: 'row', gap: spacing.xs },
   empty: { minHeight: 300, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
   emptyTitle: { color: palette.ink, fontFamily: type.bold, fontSize: 15, marginTop: spacing.md },

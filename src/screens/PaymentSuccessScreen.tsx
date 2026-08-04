@@ -1,31 +1,134 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Check, Home, ReceiptText, ShoppingBag } from 'lucide-react-native';
-import { StyleSheet, Text, View } from 'react-native';
+import { Check, Clock3, Home, Printer, ReceiptText, Share2, ShoppingBag } from 'lucide-react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, Easing, Platform, StyleSheet, Text, View } from 'react-native';
+import ViewShot, { type ViewShotRef } from 'react-native-view-shot';
+import { BcaTransferDetails } from '../components/bca-transfer-details';
 import { Button, Divider, GlassCard, Screen, StatusPill } from '../components/ui';
 import type { RootStackParamList } from '../navigation/types';
 import { useOperationsStore } from '../store/operationsStore';
 import { gradients, palette, radius, shadow, spacing, type } from '../theme/tokens';
 import { selectedOptionSummary } from '../utils/cartOptions';
-import { formatCurrency, formatDateTime, orderTypeLabels, paymentLabels } from '../utils/format';
+import { formatCurrency, formatDateTime, getPaymentLabel, orderTypeLabels, pricingModeLabels } from '../utils/format';
 import { LinearGradient } from 'expo-linear-gradient';
+import { shareInvoiceImage } from '../utils/share-invoice';
+import { useThermalInvoicePrinter } from '../utils/useThermalInvoicePrinter';
+import { useReducedMotion } from '../utils/useReducedMotion';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PaymentSuccess'>;
 
 export function PaymentSuccessScreen({ navigation, route }: Props) {
   const transaction = useOperationsStore((state) => state.transactions.find((item) => item.id === route.params.transactionId));
+  const receiptRef = useRef<ViewShotRef>(null);
+  const checkScale = useRef(new Animated.Value(1)).current;
+  const checkOffset = useRef(new Animated.Value(0)).current;
+  const [sharingReceipt, setSharingReceipt] = useState(false);
+  const [shareFeedback, setShareFeedback] = useState<{ message: string; tone: 'success' | 'danger' } | null>(null);
+  const reducedMotion = useReducedMotion();
+  const { printFeedback, printInvoice, printingInvoice } = useThermalInvoicePrinter(transaction);
+
+  useEffect(() => {
+    checkScale.stopAnimation();
+    checkOffset.stopAnimation();
+    checkScale.setValue(1);
+    checkOffset.setValue(0);
+
+    if (reducedMotion || transaction?.status === 'pending') return undefined;
+
+    const useNativeDriver = Platform.OS !== 'web';
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(checkScale, {
+            toValue: 1.07,
+            duration: 650,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver,
+          }),
+          Animated.timing(checkOffset, {
+            toValue: -5,
+            duration: 650,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver,
+          }),
+        ]),
+        Animated.parallel([
+          Animated.timing(checkScale, {
+            toValue: 1,
+            duration: 650,
+            easing: Easing.inOut(Easing.cubic),
+            useNativeDriver,
+          }),
+          Animated.timing(checkOffset, {
+            toValue: 0,
+            duration: 650,
+            easing: Easing.inOut(Easing.cubic),
+            useNativeDriver,
+          }),
+        ]),
+      ]),
+    );
+
+    animation.start();
+    return () => animation.stop();
+  }, [checkOffset, checkScale, reducedMotion, transaction?.status]);
 
   if (!transaction) return <Screen><Text style={styles.notFound}>Transaksi tidak ditemukan.</Text></Screen>;
 
+  const isPending = transaction.status === 'pending';
   const newSale = () => navigation.reset({ index: 0, routes: [{ name: 'MainTabs', params: { screen: 'POS' } }] });
   const goHome = () => navigation.reset({ index: 0, routes: [{ name: 'MainTabs', params: { screen: 'Home' } }] });
+  const safeReceiptNo = transaction.receiptNo.replace(/[^a-zA-Z0-9_-]/g, '-');
+
+  const shareReceipt = async () => {
+    if (!receiptRef.current || sharingReceipt) return;
+
+    setSharingReceipt(true);
+    setShareFeedback(null);
+    try {
+      const imageUri = await receiptRef.current.capture();
+      const result = await shareInvoiceImage(imageUri, transaction.receiptNo);
+      if (result === 'downloaded') {
+        setShareFeedback({ message: 'Invoice JPG berhasil diunduh.', tone: 'success' });
+      } else if (result === 'unavailable') {
+        setShareFeedback({ message: 'Fitur berbagi tidak tersedia di perangkat ini.', tone: 'danger' });
+      }
+    } catch (shareError) {
+      if (shareError instanceof Error && shareError.name === 'AbortError') return;
+      setShareFeedback({ message: 'Invoice JPG belum dapat dibuat. Silakan coba lagi.', tone: 'danger' });
+    } finally {
+      setSharingReceipt(false);
+    }
+  };
 
   return (
     <Screen bottomInset={spacing.xl}>
+      <ViewShot
+        ref={receiptRef}
+        options={{
+          fileName: `invoice-${safeReceiptNo}`,
+          format: 'jpg',
+          quality: 0.95,
+          result: Platform.OS === 'web' ? 'data-uri' : 'tmpfile',
+        }}
+        style={styles.invoiceSurface}
+      >
+        <View style={[styles.shareOrb, styles.shareOrbPink]} />
+        <View style={[styles.shareOrb, styles.shareOrbGold]} />
+        <View style={[styles.shareOrb, styles.shareOrbWhite]} />
       <View style={styles.successHero}>
-        <LinearGradient colors={gradients.success} style={styles.checkCircle}><Check color={palette.white} size={42} strokeWidth={2.5} /></LinearGradient>
-        <StatusPill label="Pembayaran berhasil" tone="success" />
-        <Text accessibilityRole="header" style={styles.title}>Transaksi selesai</Text>
-        <Text style={styles.subtitle}>Pembayaran sudah dicatat. Siapkan pesanan terbaik untuk pelanggan.</Text>
+        <Animated.View
+          style={[styles.checkMotion, { transform: [{ translateY: checkOffset }, { scale: checkScale }] }]}
+        >
+          <LinearGradient colors={isPending ? gradients.gold : gradients.success} style={styles.checkCircle}>
+            {isPending
+              ? <Clock3 color={palette.white} size={42} strokeWidth={2.5} />
+              : <Check color={palette.white} size={42} strokeWidth={2.5} />}
+          </LinearGradient>
+        </Animated.View>
+        <StatusPill label={isPending ? 'Menunggu pembayaran' : 'Pembayaran berhasil'} style={styles.successStatus} tone={isPending ? 'warning' : 'success'} />
+        <Text accessibilityRole="header" style={styles.title}>{isPending ? 'Bayar nanti dicatat' : 'Transaksi selesai'}</Text>
+        <Text style={styles.subtitle}>{isPending ? 'Tagihan belum masuk pendapatan. Lunasi dari Riwayat saat pelanggan membayar.' : 'Pembayaran sudah dicatat. Siapkan pesanan terbaik untuk pelanggan.'}</Text>
         <Text style={styles.total}>{formatCurrency(transaction.total)}</Text>
         {transaction.change > 0 ? <Text style={styles.change}>Kembalian {formatCurrency(transaction.change)}</Text> : null}
       </View>
@@ -34,7 +137,7 @@ export function PaymentSuccessScreen({ navigation, route }: Props) {
         <View style={styles.receiptHeading}>
           <View style={styles.receiptIcon}><ReceiptText color={palette.cocoa} size={22} /></View>
           <View style={styles.receiptCopy}><Text style={styles.receiptNo}>{transaction.receiptNo}</Text><Text style={styles.receiptDate}>{formatDateTime(transaction.createdAt)}</Text></View>
-          <StatusPill label="Tersimpan" tone="success" />
+          <StatusPill label={isPending ? 'Pending' : 'Tersimpan'} tone={isPending ? 'warning' : 'success'} />
         </View>
         <Divider />
         {transaction.items.map((item) => (
@@ -43,18 +146,47 @@ export function PaymentSuccessScreen({ navigation, route }: Props) {
           </View>
         ))}
         <Divider />
-        <DetailRow label="Metode" value={paymentLabels[transaction.paymentMethod]} />
+        <DetailRow label="Metode" value={getPaymentLabel(transaction.paymentMethod)} />
         <DetailRow label="Jenis pesanan" value={orderTypeLabels[transaction.orderType]} />
+        <DetailRow label="Jenis harga" value={pricingModeLabels[transaction.pricingMode]} />
         {transaction.customerName ? <DetailRow label="Pelanggan" value={transaction.customerName} /> : null}
         <DetailRow label="Kasir" value={transaction.cashierName} />
+        {transaction.paymentMethod === 'transfer' ? (
+          <BcaTransferDetails helper="Rekening tujuan untuk pembayaran" style={styles.invoiceBankCard} />
+        ) : null}
         <Divider />
         <DetailRow label="Jumlah donat" value={`${transaction.pieceCount} pcs`} />
-        <DetailRow label="Total HPP" value={formatCurrency(transaction.costOfGoodsSold)} />
-        <DetailRow label="Laba bersih" value={formatCurrency(transaction.netProfit)} />
+        <DetailRow label="Subtotal" value={formatCurrency(transaction.subtotal)} />
+        {transaction.discount > 0 ? <DetailRow label="Diskon" value={`− ${formatCurrency(transaction.discount)}`} /> : null}
+        {transaction.tax > 0 ? <DetailRow label="Pajak" value={formatCurrency(transaction.tax)} /> : null}
+        {transaction.service > 0 ? <DetailRow label="Biaya layanan" value={formatCurrency(transaction.service)} /> : null}
+        <View style={styles.invoiceTotalRow}><Text style={styles.invoiceTotalLabel}>Total pembayaran</Text><Text style={styles.invoiceTotalValue}>{formatCurrency(transaction.total)}</Text></View>
+        {transaction.paymentMethod === 'cash' ? <DetailRow label="Uang diterima" value={formatCurrency(transaction.amountPaid)} /> : null}
+        {transaction.change > 0 ? <DetailRow label="Kembalian" value={formatCurrency(transaction.change)} /> : null}
+        <Text style={styles.invoiceThanks}>{isPending ? 'Tagihan ini belum dibayar. Simpan nomor struk untuk pelunasan.' : 'Terima kasih sudah berbelanja di Donat Dankau.'}</Text>
       </GlassCard>
+      </ViewShot>
 
       <View style={styles.actions}>
         <Button icon={ShoppingBag} label="Transaksi baru" onPress={newSale} />
+        <Button icon={Printer} label="Cetak invoice (2 salinan)" loading={printingInvoice} onPress={printInvoice} variant="secondary" />
+        {printFeedback ? (
+          <Text
+            accessibilityLiveRegion="polite"
+            style={[styles.shareFeedback, printFeedback.tone === 'success' ? styles.shareFeedbackSuccess : styles.shareFeedbackDanger]}
+          >
+            {printFeedback.message}
+          </Text>
+        ) : null}
+        <Button icon={Share2} label="Bagikan invoice (JPG)" loading={sharingReceipt} onPress={shareReceipt} variant="secondary" />
+        {shareFeedback ? (
+          <Text
+            accessibilityLiveRegion="polite"
+            style={[styles.shareFeedback, shareFeedback.tone === 'success' ? styles.shareFeedbackSuccess : styles.shareFeedbackDanger]}
+          >
+            {shareFeedback.message}
+          </Text>
+        ) : null}
         <Button icon={Home} label="Kembali ke beranda" onPress={goHome} variant="ghost" />
       </View>
     </Screen>
@@ -66,8 +198,15 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
+  invoiceSurface: { position: 'relative', maxWidth: 624, width: '100%', alignSelf: 'center', overflow: 'hidden', padding: spacing.sm, backgroundColor: palette.cream },
+  shareOrb: { position: 'absolute', borderRadius: radius.pill },
+  shareOrbPink: { width: 220, height: 220, top: -80, right: -100, backgroundColor: 'rgba(232, 140, 164, 0.22)' },
+  shareOrbGold: { width: 180, height: 180, bottom: 45, left: -105, backgroundColor: 'rgba(239, 184, 89, 0.18)' },
+  shareOrbWhite: { width: 150, height: 150, top: '38%', right: -100, backgroundColor: 'rgba(255,255,255,0.65)' },
   successHero: { alignItems: 'center', paddingVertical: spacing.xl, maxWidth: 520, alignSelf: 'center' },
-  checkCircle: { width: 86, height: 86, borderRadius: 31, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.md, ...shadow.floating },
+  checkMotion: { marginBottom: spacing.md },
+  checkCircle: { width: 86, height: 86, borderRadius: 31, alignItems: 'center', justifyContent: 'center', ...shadow.floating },
+  successStatus: { alignSelf: 'center' },
   title: { color: palette.ink, fontFamily: type.display, fontSize: 32, marginTop: spacing.md },
   subtitle: { maxWidth: 390, color: palette.muted, fontFamily: type.regular, fontSize: 13, lineHeight: 20, textAlign: 'center', marginTop: spacing.xs },
   total: { color: palette.cocoa, fontFamily: type.display, fontSize: 36, marginTop: spacing.lg },
@@ -79,6 +218,7 @@ const styles = StyleSheet.create({
   receiptCopy: { flex: 1 },
   receiptNo: { color: palette.ink, fontFamily: type.bold, fontSize: 13 },
   receiptDate: { color: palette.muted, fontFamily: type.regular, fontSize: 10, marginTop: 3 },
+  invoiceBankCard: { marginVertical: spacing.xs },
   itemRow: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   itemQty: { width: 28, color: palette.cocoa, fontFamily: type.bold, fontSize: 12 },
   itemCopy: { flex: 1 },
@@ -88,6 +228,13 @@ const styles = StyleSheet.create({
   detailRow: { minHeight: 32, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   detailLabel: { color: palette.muted, fontFamily: type.medium, fontSize: 11 },
   detailValue: { color: palette.ink, fontFamily: type.semibold, fontSize: 11 },
+  invoiceTotalRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, borderTopWidth: 1, borderTopColor: palette.line, marginTop: spacing.xs, paddingTop: spacing.sm },
+  invoiceTotalLabel: { color: palette.ink, fontFamily: type.bold, fontSize: 13 },
+  invoiceTotalValue: { color: palette.cocoa, fontFamily: type.display, fontSize: 21 },
+  invoiceThanks: { color: palette.cocoa, fontFamily: type.semibold, fontSize: 10, lineHeight: 16, textAlign: 'center', paddingTop: spacing.sm },
   actions: { maxWidth: 600, width: '100%', alignSelf: 'center', gap: spacing.xs, marginTop: spacing.lg },
+  shareFeedback: { fontFamily: type.medium, fontSize: 11, lineHeight: 17, textAlign: 'center', paddingHorizontal: spacing.sm },
+  shareFeedbackSuccess: { color: palette.success },
+  shareFeedbackDanger: { color: palette.danger },
   notFound: { color: palette.danger, fontFamily: type.medium, textAlign: 'center', marginTop: spacing.xxl },
 });

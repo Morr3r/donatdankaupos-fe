@@ -4,10 +4,10 @@
     "slug": "donatdankau-fe",
     "version": "1.0.0",
     "scheme": "donatdankau-pos",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/donat-dankau-logo.png",
     "userInterfaceStyle": "light",
-    "backgroundColor": "#FFF9F2",
+    "backgroundColor": "#140D0A",
     "plugins": [
       "./plugins/with-short-android-cmake-path",
       "@react-native-community/datetimepicker",
@@ -17,7 +17,16 @@
           "photosPermission": "Izinkan Donat Dankau POS memilih foto produk dari galeri."
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      "expo-video",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/donat-dankau-logo.png",
+          "color": "#E88CA4",
+          "defaultChannel": "operations"
+        }
+      ]
     ],
     "ios": {
       "supportsTablet": true,
@@ -25,15 +34,27 @@
     },
     "android": {
       "package": "id.donatdankau.pos",
+      "googleServicesFile": "./google-services.json",
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#FFF9F2",
         "foregroundImage": "./assets/donat-dankau-logo.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.VIBRATE"
+      ]
     },
     "web": {
       "favicon": "./assets/donat-dankau-logo.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "ba2260fc-e14f-4a95-9842-30c7e4a77e2a"
+      }
+    },
+    "owner": "morrer"
   }
 }

@@ -3,6 +3,8 @@ import { authService } from '../api/services';
 import { setApiAccessToken, setTokenRefresher } from '../api/client';
 import { sessionStorage } from '../storage/sessionStorage';
 import type { LoginPayload, User } from '../types/domain';
+import { normalizeBrandCopy } from '../utils/brand';
+import { unregisterCurrentPushDevice } from '../notifications/pushNotifications';
 
 const SESSION_KEY = 'donat_dankau_session_v1';
 
@@ -53,7 +55,8 @@ export const useSessionStore = create<SessionState>((set) => ({
         set({ status: 'unauthenticated' });
         return;
       }
-      const session = JSON.parse(raw) as StoredSession;
+      const session = normalizeBrandCopy(JSON.parse(raw) as StoredSession);
+      await sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
       setApiAccessToken(session.accessToken);
       configureTokenRefresh();
       set({ status: 'authenticated', user: session.user });
@@ -80,6 +83,7 @@ export const useSessionStore = create<SessionState>((set) => ({
   },
   logout: async () => {
     try {
+      await unregisterCurrentPushDevice().catch(() => undefined);
       const raw = await sessionStorage.getItem(SESSION_KEY);
       if (raw) {
         const session = JSON.parse(raw) as StoredSession;

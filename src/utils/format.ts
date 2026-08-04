@@ -1,4 +1,4 @@
-import type { CartItem, CartTotals, OrderType, PaymentMethod } from '../types/domain';
+import type { CartItem, CartTotals, OrderType, PaymentMethod, PricingMode, Product } from '../types/domain';
 
 const currency = new Intl.NumberFormat('id-ID', {
   style: 'currency',
@@ -28,6 +28,18 @@ export const formatCurrency = (value: number) => currency.format(value);
 export const formatCompact = (value: number) => compactNumber.format(value);
 export const formatPercent = (value: number) => `${percentage.format(value)}%`;
 export const formatDateTime = (value: string | Date) => dateTime.format(new Date(value));
+export const numericInputDigits = (value: string | number) => String(value).replace(/\D/g, '');
+
+export const formatNumericInput = (value: string | number) => {
+  const digits = numericInputDigits(value);
+  if (!digits) return '';
+  const normalized = digits.replace(/^0+(?=\d)/, '');
+  return normalized.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+};
+
+export const parseNumericInput = (value: string | number) => Number(numericInputDigits(value) || 0);
+export const getProductPrice = (product: Product, pricingMode: PricingMode) =>
+  pricingMode === 'reseller' ? product.resellerPrice ?? product.price : product.price;
 
 export const resolvePiecesPerUnit = (explicitValue: number | null | undefined, ...labels: (string | null | undefined)[]) => {
   if (explicitValue && explicitValue >= 1) return Math.floor(explicitValue);
@@ -72,10 +84,18 @@ export const paymentLabels: Record<PaymentMethod, string> = {
   transfer: 'Transfer',
 };
 
+export const getPaymentLabel = (method: PaymentMethod | null | undefined) =>
+  method ? paymentLabels[method] : 'Belum dibayar';
+
 export const orderTypeLabels: Record<OrderType, string> = {
   takeaway: 'Bawa pulang',
   dine_in: 'Makan di tempat',
   delivery: 'Delivery',
+};
+
+export const pricingModeLabels: Record<PricingMode, string> = {
+  customer: 'Pelanggan',
+  reseller: 'Reseller',
 };
 
 export const createLocalId = (prefix: string) =>

@@ -1,5 +1,5 @@
 import * as Haptics from 'expo-haptics';
-import { Banknote, CircleDollarSign, Clock3, LogOut, Store } from 'lucide-react-native';
+import { Banknote, CalendarDays, CircleDollarSign, Clock3, Landmark, LogOut, Store } from 'lucide-react-native';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { BrandLogo, Button, Field, GlassCard, Screen, StatusPill } from '../components/ui';
@@ -7,34 +7,50 @@ import { TERMINAL_ID } from '../api/client';
 import { palette, radius, spacing, type } from '../theme/tokens';
 import { useOperationsStore } from '../store/operationsStore';
 import { useSessionStore } from '../store/sessionStore';
-import { formatCurrency } from '../utils/format';
+import { formatJakartaBusinessDate } from '../utils/date';
+import { formatCurrency, formatNumericInput, parseNumericInput } from '../utils/format';
 
 const cashSuggestions = [100000, 200000, 300000, 500000];
 
 export function OpenShiftScreen() {
-  const [openingCash, setOpeningCash] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [openingPhysicalCash, setOpeningPhysicalCash] = useState('');
+  const [openingBankBalance, setOpeningBankBalance] = useState('');
+  const [physicalError, setPhysicalError] = useState<string | null>(null);
+  const [bankError, setBankError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const user = useSessionStore((state) => state.user);
   const logout = useSessionStore((state) => state.logout);
   const openShift = useOperationsStore((state) => state.openShift);
+  const hasOpeningBalances = openingPhysicalCash.trim().length > 0 && openingBankBalance.trim().length > 0;
 
   const handleOpen = async () => {
-    const value = Number(openingCash.replace(/\D/g, ''));
-    if (!Number.isFinite(value) || value < 0) {
-      setError('Masukkan modal awal yang valid.');
-      return;
-    }
+    const physicalValue = parseNumericInput(openingPhysicalCash);
+    const bankValue = parseNumericInput(openingBankBalance);
+    const nextPhysicalError = openingPhysicalCash.trim().length === 0
+      ? 'Kas tunai wajib diisi. Jika laci kosong, masukkan 0.'
+      : !Number.isFinite(physicalValue) || physicalValue < 0
+        ? 'Masukkan saldo kas tunai yang valid.'
+        : null;
+    const nextBankError = openingBankBalance.trim().length === 0
+      ? 'Kas non-tunai wajib diisi. Jika saldo kosong, masukkan 0.'
+      : !Number.isFinite(bankValue) || bankValue < 0
+        ? 'Masukkan saldo kas non-tunai yang valid.'
+        : null;
+    setPhysicalError(nextPhysicalError);
+    setBankError(nextBankError);
+    setSubmitError(null);
+    if (nextPhysicalError || nextBankError) return;
     if (!TERMINAL_ID) {
-      setError('Perangkat kasir belum siap. Hubungi pengelola outlet.');
+      setSubmitError('Perangkat kasir belum siap. Hubungi pengelola outlet.');
       return;
     }
     setSubmitting(true);
     try {
-      await openShift(value, TERMINAL_ID);
+      await openShift(physicalValue, bankValue, TERMINAL_ID);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (openError) {
-      setError(openError instanceof Error ? openError.message : 'Shift tidak dapat dibuka.');
+      setSubmitError(openError instanceof Error ? openError.message : 'Shift tidak dapat dibuka.');
     } finally {
       setSubmitting(false);
     }
@@ -48,9 +64,9 @@ export function OpenShiftScreen() {
       </View>
 
       <View style={styles.hero}>
-        <StatusPill label="Persiapan outlet" tone="warning" />
+        <StatusPill label="Wajib setiap hari" tone="warning" />
         <Text accessibilityRole="header" style={styles.title}>Buka shift hari ini</Text>
-        <Text style={styles.subtitle}>Catat modal awal laci agar rekonsiliasi kas di akhir shift tetap akurat.</Text>
+        <Text style={styles.subtitle}>Sebelum mulai berjualan, catat saldo kas tunai dan non-tunai hari ini.</Text>
       </View>
 
       <GlassCard contentStyle={styles.shiftCard}>
@@ -63,29 +79,42 @@ export function OpenShiftScreen() {
         </View>
 
         <View style={styles.summaryGrid}>
-          <View style={styles.summaryItem}><Clock3 color={palette.honey} size={19} /><Text style={styles.summaryLabel}>Mulai</Text><Text style={styles.summaryValue}>Sekarang</Text></View>
+          <View style={styles.summaryItem}><CalendarDays color={palette.honey} size={19} /><Text style={styles.summaryLabel}>Hari operasional</Text><Text style={styles.summaryValue}>{formatJakartaBusinessDate()}</Text></View>
           <View style={styles.summaryItem}><CircleDollarSign color={palette.rose} size={19} /><Text style={styles.summaryLabel}>Terminal</Text><Text style={styles.summaryValue}>{TERMINAL_ID || 'Belum siap'}</Text></View>
         </View>
 
         <Field
-          error={error}
+          error={physicalError}
           keyboardType="number-pad"
-          label="Modal awal laci"
+          label="Kas tunai awal"
           leftIcon={Banknote}
-          onChangeText={(value) => { setOpeningCash(value.replace(/\D/g, '')); setError(null); }}
+          onChangeText={(value) => { setOpeningPhysicalCash(formatNumericInput(value)); setPhysicalError(null); setSubmitError(null); }}
           placeholder="0"
-          value={openingCash}
+          value={openingPhysicalCash}
         />
-        <Text style={styles.amountPreview}>{formatCurrency(Number(openingCash || 0))}</Text>
+        <Text style={styles.amountPreview}>{formatCurrency(parseNumericInput(openingPhysicalCash))}</Text>
 
+        <Text style={styles.suggestionLabel}>Nominal cepat kas tunai</Text>
         <View style={styles.suggestions}>
           {cashSuggestions.map((amount) => (
-            <Button key={amount} compact label={formatCurrency(amount).replace('Rp', 'Rp ')} onPress={() => setOpeningCash(String(amount))} style={styles.suggestionButton} variant={Number(openingCash) === amount ? 'primary' : 'secondary'} />
+            <Button key={amount} compact label={formatCurrency(amount).replace('Rp', 'Rp ')} onPress={() => { setOpeningPhysicalCash(formatNumericInput(amount)); setPhysicalError(null); setSubmitError(null); }} style={styles.suggestionButton} variant={parseNumericInput(openingPhysicalCash) === amount ? 'primary' : 'secondary'} />
           ))}
         </View>
 
-        <Button icon={Clock3} label="Buka shift & mulai jualan" loading={submitting} onPress={handleOpen} />
-        <Text style={styles.helper}>Modal awal membantu pencocokan uang laci saat penjualan selesai.</Text>
+        <Field
+          error={bankError}
+          keyboardType="number-pad"
+          label="Kas non-tunai awal"
+          leftIcon={Landmark}
+          onChangeText={(value) => { setOpeningBankBalance(formatNumericInput(value)); setBankError(null); setSubmitError(null); }}
+          placeholder="0"
+          value={openingBankBalance}
+        />
+        <Text style={styles.amountPreview}>{formatCurrency(parseNumericInput(openingBankBalance))}</Text>
+
+        {submitError ? <Text style={styles.formError}>{submitError}</Text> : null}
+        <Button disabled={!hasOpeningBalances} icon={Clock3} label="Buka shift & mulai jualan" loading={submitting} onPress={handleOpen} />
+        <Text style={styles.helper}>Kedua field wajib diisi setiap hari. Masukkan angka 0 jika saldo kas tunai atau non-tunai kosong.</Text>
       </GlassCard>
     </Screen>
   );
@@ -107,7 +136,9 @@ const styles = StyleSheet.create({
   summaryLabel: { color: palette.muted, fontFamily: type.medium, fontSize: 10, marginTop: spacing.sm },
   summaryValue: { color: palette.ink, fontFamily: type.bold, fontSize: 14, marginTop: 2 },
   amountPreview: { color: palette.cocoa, fontFamily: type.display, fontSize: 25, textAlign: 'center', marginTop: -spacing.sm },
+  suggestionLabel: { color: palette.muted, fontFamily: type.medium, fontSize: 10, marginBottom: -spacing.sm },
   suggestions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
   suggestionButton: { flexGrow: 1, minWidth: 112 },
+  formError: { color: palette.danger, fontFamily: type.medium, fontSize: 11, lineHeight: 16, textAlign: 'center' },
   helper: { color: palette.muted, fontFamily: type.regular, fontSize: 10, lineHeight: 15, textAlign: 'center' },
 });

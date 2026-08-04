@@ -15,13 +15,17 @@ import { PaymentSuccessScreen } from '../screens/PaymentSuccessScreen';
 import { OrderDetailScreen } from '../screens/OrderDetailScreen';
 import { InventoryScreen } from '../screens/InventoryScreen';
 import { ShiftScreen } from '../screens/ShiftScreen';
+import { ExpensesScreen } from '../screens/ExpensesScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { ProductManagementScreen } from '../screens/ProductManagementScreen';
 import { ProductEditorScreen } from '../screens/ProductEditorScreen';
+import { NotificationsScreen } from '../screens/NotificationsScreen';
 import { palette, radius, shadow, type } from '../theme/tokens';
 import { useReducedMotion } from '../utils/useReducedMotion';
+import { useResponsiveLayout } from '../utils/responsive';
 import { SwipeableTabScene } from './SwipeableTabScene';
 import type { MainTabParamList, RootStackParamList } from './types';
+import { flushPendingNotificationNavigation, navigationRef } from './notificationNavigation';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -51,7 +55,9 @@ const linking: LinkingOptions<RootStackParamList> = {
       OrderDetail: 'orders/:transactionId',
       Inventory: 'inventory',
       Shift: 'shift',
+      Expenses: 'expenses',
       Settings: 'settings',
+      Notifications: 'notifications',
     },
   },
 };
@@ -108,6 +114,7 @@ const interpolateTabScene: NonNullable<BottomTabNavigationOptions['sceneStyleInt
 
 function MainTabs() {
   const insets = useSafeAreaInsets();
+  const { isLandscapePhone } = useResponsiveLayout();
   const reduceMotion = useReducedMotion();
   return (
     <Tab.Navigator
@@ -124,14 +131,22 @@ function MainTabs() {
           tabBarInactiveTintColor: '#8D7A70',
           tabBarBackground: () => <BlurView intensity={78} tint="light" style={StyleSheet.absoluteFill} />,
           tabBarHideOnKeyboard: true,
-          tabBarIcon: ({ color, focused, size }) => (
-            <View style={[styles.tabIcon, focused && styles.tabIconActive]}>
+          tabBarIcon: ({ color, focused }) => (
+            <View style={[styles.tabIcon, isLandscapePhone && styles.tabIconLandscape, focused && styles.tabIconActive]}>
               <Icon color={focused ? palette.white : color} size={focused ? 20 : 21} strokeWidth={focused ? 2.3 : 1.9} />
             </View>
           ),
           tabBarLabel: labels[route.name],
-          tabBarLabelStyle: styles.tabLabel,
-          tabBarStyle: [styles.tabBar, { bottom: Math.max(insets.bottom, 10) + 6 }],
+          tabBarLabelStyle: [styles.tabLabel, isLandscapePhone && styles.tabLabelLandscape],
+          tabBarStyle: [
+            styles.tabBar,
+            isLandscapePhone && styles.tabBarLandscape,
+            {
+              bottom: Math.max(insets.bottom, isLandscapePhone ? 4 : 10) + (isLandscapePhone ? 2 : 6),
+              left: Math.max(insets.left, 12),
+              right: Math.max(insets.right, 12),
+            },
+          ],
         };
       }}
     >
@@ -156,7 +171,12 @@ function MainTabs() {
 
 export function AppNavigator() {
   return (
-    <NavigationContainer linking={linking} theme={navigationTheme}>
+    <NavigationContainer
+      linking={linking}
+      onReady={flushPendingNotificationNavigation}
+      ref={navigationRef}
+      theme={navigationTheme}
+    >
       <Stack.Navigator screenOptions={{ animation: 'slide_from_right', contentStyle: { backgroundColor: palette.cream }, headerShown: false }}>
         <Stack.Screen component={MainTabs} name="MainTabs" />
         <Stack.Screen component={CheckoutScreen} name="Checkout" options={{ gestureEnabled: true }} />
@@ -164,9 +184,11 @@ export function AppNavigator() {
         <Stack.Screen component={OrderDetailScreen} name="OrderDetail" />
         <Stack.Screen component={InventoryScreen} name="Inventory" />
         <Stack.Screen component={ShiftScreen} name="Shift" />
+        <Stack.Screen component={ExpensesScreen} name="Expenses" />
         <Stack.Screen component={SettingsScreen} name="Settings" />
         <Stack.Screen component={ProductManagementScreen} name="Products" />
         <Stack.Screen component={ProductEditorScreen} name="ProductEditor" />
+        <Stack.Screen component={NotificationsScreen} name="Notifications" />
       </Stack.Navigator>
     </NavigationContainer>
   );
@@ -189,7 +211,10 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     ...shadow.floating,
   },
+  tabBarLandscape: { height: 58, paddingTop: 3, paddingBottom: 4, borderRadius: radius.lg },
   tabIcon: { width: 35, height: 30, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  tabIconLandscape: { width: 32, height: 26, borderRadius: 11 },
   tabIconActive: { backgroundColor: palette.cocoaDark },
   tabLabel: { fontFamily: type.bold, fontSize: 9, marginTop: 2 },
+  tabLabelLandscape: { fontSize: 8, marginTop: 0 },
 });

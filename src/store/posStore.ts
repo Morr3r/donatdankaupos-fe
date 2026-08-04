@@ -1,9 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import type { CartItem, Product, ProductCategory, ProductOption } from '../types/domain';
+import type { CartItem, PricingMode, Product, ProductCategory, ProductOption } from '../types/domain';
 import { selectedVariantIds } from '../utils/cartOptions';
-import { createLocalId } from '../utils/format';
+import { createLocalId, getProductPrice } from '../utils/format';
 
 interface ProductSelection {
   quantity: number;
@@ -18,13 +18,16 @@ interface POSState {
   cart: CartItem[];
   search: string;
   category: ProductCategory;
+  pricingMode: PricingMode;
   setSearch: (search: string) => void;
   setCategory: (category: ProductCategory) => void;
+  setPricingMode: (pricingMode: PricingMode) => void;
   addProduct: (product: Product, selection?: ProductSelection) => void;
   changeQuantity: (lineId: string, delta: number) => void;
   setLineNote: (lineId: string, note: string) => void;
   removeLine: (lineId: string) => void;
   clearCart: () => void;
+  resetSale: () => void;
 }
 
 export const usePOSStore = create<POSState>()(
@@ -33,8 +36,10 @@ export const usePOSStore = create<POSState>()(
       cart: [],
       search: '',
       category: 'Semua',
+      pricingMode: 'customer',
       setSearch: (search) => set({ search }),
       setCategory: (category) => set({ category }),
+      setPricingMode: (pricingMode) => set({ pricingMode }),
       addProduct: (product, selection) =>
         set((state) => {
           const resolvedSelection = selection ?? { quantity: Math.max(product.minimumOrderQuantity ?? 1, 1) };
@@ -58,7 +63,7 @@ export const usePOSStore = create<POSState>()(
               lineId: createLocalId('line'),
               productId: product.id,
               name: product.name,
-              price: product.price + optionPrice,
+              price: getProductPrice(product, state.pricingMode) + optionPrice,
               quantity: resolvedSelection.quantity,
               minimumOrderQuantity: Math.max(product.minimumOrderQuantity ?? 1, 1),
               piecesPerUnit: Math.max(product.piecesPerUnit ?? 1, 1),
@@ -80,11 +85,12 @@ export const usePOSStore = create<POSState>()(
       setLineNote: (lineId, note) => set((state) => ({ cart: state.cart.map((item) => item.lineId === lineId ? { ...item, note } : item) })),
       removeLine: (lineId) => set((state) => ({ cart: state.cart.filter((item) => item.lineId !== lineId) })),
       clearCart: () => set({ cart: [] }),
+      resetSale: () => set({ cart: [], pricingMode: 'customer', search: '', category: 'Semua' }),
     }),
     {
       name: 'donat-dankau-cart-v1',
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: (state) => ({ cart: state.cart }),
+      partialize: (state) => ({ cart: state.cart, pricingMode: state.pricingMode }),
     },
   ),
 );
