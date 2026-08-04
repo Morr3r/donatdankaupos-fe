@@ -5,7 +5,7 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "assets" / "donat-dankau-logo.png"
-OUTPUT = ROOT / "assets" / "donat-dankau-notification.png"
+OUTPUT = ROOT / "assets" / "donat-dankau-logo.png"
 
 # The donut mark is the second glyph in the full Donat Dankau wordmark.
 DONUT_BOUNDS = (118, 208, 204, 272)

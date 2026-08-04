@@ -22,7 +22,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/donat-dankau-notification.png",
+          "icon": "./assets/donat-dankau-logo.png",
           "color": "#E88CA4",
           "defaultChannel": "operations"
         }
