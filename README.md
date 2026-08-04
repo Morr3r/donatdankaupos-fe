@@ -63,11 +63,6 @@ npm start
 
 Select Android, iOS, or web from the Expo CLI. Native features such as remote push notifications and thermal printing must be tested with a development or preview build rather than Expo Go.
 
-## Environment configuration
-
-Copy `.env.example` to `.env`, then provide the values required for your local environment. For EAS builds, manage configuration through the appropriate EAS environment and secret-management features.
-
-Do not place internal service URLs, API keys, tokens, service accounts, passwords, or production configuration values in the README or source control.
 
 ## Development commands
 
@@ -117,7 +112,6 @@ Remote push notifications use `expo-notifications` and the Expo Push Service. Af
 4. Upload the FCM V1 Google Service Account Key through EAS Credentials. Never commit the service-account key.
 5. Create a device build with `eas build --platform android --profile preview`.
 
-Remote push notifications cannot be tested in Expo Go. Use a development or preview build on a device or emulator with Google Play Services.
 
 ## Build checks
 
