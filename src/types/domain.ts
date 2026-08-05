@@ -25,6 +25,12 @@ export interface Shift {
   cashDifference?: number;
 }
 
+export interface ShiftOpeningBalances {
+  openingCash: number;
+  openingBankBalance: number;
+  sourceShiftId: string | null;
+}
+
 export type ExpenseFundingSource = 'bank' | 'cash';
 
 export interface Expense {

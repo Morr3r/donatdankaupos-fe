@@ -120,7 +120,7 @@ export function ShiftScreen({ navigation }: NativeStackScreenProps<RootStackPara
       Alert.alert('Kas aktual belum diisi', 'Hitung kas tunai di laci lalu masukkan nominalnya.');
       return;
     }
-    Alert.alert('Tutup shift sekarang?', `Selisih kas tercatat ${formatCurrency(difference)}. Setelah ditutup, kasir harus membuka shift baru.`, [
+    Alert.alert('Tutup shift sekarang?', `Selisih kas tercatat ${formatCurrency(difference)}. Saldo tunai aktual dan saldo rekening akan otomatis diteruskan saat membuka shift berikutnya.`, [
       { text: 'Batal', style: 'cancel' },
       { text: 'Tutup shift', style: 'destructive', onPress: async () => {
         try {

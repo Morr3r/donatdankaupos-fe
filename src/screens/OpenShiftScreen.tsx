@@ -1,9 +1,10 @@
 import * as Haptics from 'expo-haptics';
 import { Banknote, CalendarDays, CircleDollarSign, Clock3, Landmark, LogOut, Store } from 'lucide-react-native';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { BrandLogo, Button, Field, GlassCard, Screen, StatusPill } from '../components/ui';
 import { TERMINAL_ID } from '../api/client';
+import { shiftService } from '../api/services';
 import { palette, radius, spacing, type } from '../theme/tokens';
 import { useOperationsStore } from '../store/operationsStore';
 import { useSessionStore } from '../store/sessionStore';
@@ -19,10 +20,34 @@ export function OpenShiftScreen() {
   const [bankError, setBankError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [balancesLoading, setBalancesLoading] = useState(Boolean(TERMINAL_ID));
+  const [carriedFromShiftId, setCarriedFromShiftId] = useState<string | null>(null);
+  const [carryOverBalances, setCarryOverBalances] = useState(false);
   const user = useSessionStore((state) => state.user);
   const logout = useSessionStore((state) => state.logout);
   const openShift = useOperationsStore((state) => state.openShift);
   const hasOpeningBalances = openingPhysicalCash.trim().length > 0 && openingBankBalance.trim().length > 0;
+
+  useEffect(() => {
+    let active = true;
+    if (!TERMINAL_ID) {
+      setBalancesLoading(false);
+      return () => { active = false; };
+    }
+    shiftService.nextOpeningBalances(TERMINAL_ID)
+      .then((balances) => {
+        if (!active || !balances.sourceShiftId) return;
+        setOpeningPhysicalCash(formatNumericInput(balances.openingCash));
+        setOpeningBankBalance(formatNumericInput(balances.openingBankBalance));
+        setCarriedFromShiftId(balances.sourceShiftId);
+        setCarryOverBalances(true);
+      })
+      .catch((loadError) => {
+        if (active) setSubmitError(loadError instanceof Error ? loadError.message : 'Saldo sebelumnya tidak dapat dimuat.');
+      })
+      .finally(() => { if (active) setBalancesLoading(false); });
+    return () => { active = false; };
+  }, []);
 
   const handleOpen = async () => {
     const physicalValue = parseNumericInput(openingPhysicalCash);
@@ -47,7 +72,7 @@ export function OpenShiftScreen() {
     }
     setSubmitting(true);
     try {
-      await openShift(physicalValue, bankValue, TERMINAL_ID);
+      await openShift(physicalValue, bankValue, TERMINAL_ID, carryOverBalances);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (openError) {
       setSubmitError(openError instanceof Error ? openError.message : 'Shift tidak dapat dibuka.');
@@ -64,9 +89,9 @@ export function OpenShiftScreen() {
       </View>
 
       <View style={styles.hero}>
-        <StatusPill label="Wajib setiap hari" tone="warning" />
+        <StatusPill label={carriedFromShiftId ? 'Saldo diteruskan' : 'Buka shift'} tone={carriedFromShiftId ? 'success' : 'warning'} />
         <Text accessibilityRole="header" style={styles.title}>Buka shift hari ini</Text>
-        <Text style={styles.subtitle}>Sebelum mulai berjualan, catat saldo kas tunai dan non-tunai hari ini.</Text>
+        <Text style={styles.subtitle}>{carriedFromShiftId ? 'Saldo akhir shift sebelumnya sudah otomatis diteruskan. Periksa lalu buka shift baru.' : 'Sebelum mulai berjualan, catat saldo kas tunai dan non-tunai hari ini.'}</Text>
       </View>
 
       <GlassCard contentStyle={styles.shiftCard}>
@@ -84,11 +109,12 @@ export function OpenShiftScreen() {
         </View>
 
         <Field
+          editable={!balancesLoading}
           error={physicalError}
           keyboardType="number-pad"
           label="Kas tunai awal"
           leftIcon={Banknote}
-          onChangeText={(value) => { setOpeningPhysicalCash(formatNumericInput(value)); setPhysicalError(null); setSubmitError(null); }}
+          onChangeText={(value) => { setOpeningPhysicalCash(formatNumericInput(value)); setCarryOverBalances(false); setPhysicalError(null); setSubmitError(null); }}
           placeholder="0"
           value={openingPhysicalCash}
         />
@@ -97,24 +123,25 @@ export function OpenShiftScreen() {
         <Text style={styles.suggestionLabel}>Nominal cepat kas tunai</Text>
         <View style={styles.suggestions}>
           {cashSuggestions.map((amount) => (
-            <Button key={amount} compact label={formatCurrency(amount).replace('Rp', 'Rp ')} onPress={() => { setOpeningPhysicalCash(formatNumericInput(amount)); setPhysicalError(null); setSubmitError(null); }} style={styles.suggestionButton} variant={parseNumericInput(openingPhysicalCash) === amount ? 'primary' : 'secondary'} />
+            <Button key={amount} compact disabled={balancesLoading} label={formatCurrency(amount).replace('Rp', 'Rp ')} onPress={() => { setOpeningPhysicalCash(formatNumericInput(amount)); setCarryOverBalances(false); setPhysicalError(null); setSubmitError(null); }} style={styles.suggestionButton} variant={parseNumericInput(openingPhysicalCash) === amount ? 'primary' : 'secondary'} />
           ))}
         </View>
 
         <Field
+          editable={!balancesLoading}
           error={bankError}
           keyboardType="number-pad"
           label="Kas non-tunai awal"
           leftIcon={Landmark}
-          onChangeText={(value) => { setOpeningBankBalance(formatNumericInput(value)); setBankError(null); setSubmitError(null); }}
+          onChangeText={(value) => { setOpeningBankBalance(formatNumericInput(value)); setCarryOverBalances(false); setBankError(null); setSubmitError(null); }}
           placeholder="0"
           value={openingBankBalance}
         />
         <Text style={styles.amountPreview}>{formatCurrency(parseNumericInput(openingBankBalance))}</Text>
 
         {submitError ? <Text style={styles.formError}>{submitError}</Text> : null}
-        <Button disabled={!hasOpeningBalances} icon={Clock3} label="Buka shift & mulai jualan" loading={submitting} onPress={handleOpen} />
-        <Text style={styles.helper}>Kedua field wajib diisi setiap hari. Masukkan angka 0 jika saldo kas tunai atau non-tunai kosong.</Text>
+        <Button disabled={!hasOpeningBalances || balancesLoading} icon={Clock3} label={balancesLoading ? 'Memuat saldo sebelumnya...' : 'Buka shift & mulai jualan'} loading={submitting} onPress={handleOpen} />
+        <Text style={styles.helper}>{carriedFromShiftId ? (carryOverBalances ? 'Kas tunai dan rekening tetap tersimpan setelah tutup shift. Ubah nominal hanya jika ada setoran atau penarikan di luar aplikasi.' : 'Saldo lanjutan sudah disesuaikan manual dan akan dipakai sebagai saldo awal shift ini.') : 'Kedua field wajib diisi untuk shift pertama. Masukkan angka 0 jika saldo kas tunai atau non-tunai kosong.'}</Text>
       </GlassCard>
     </Screen>
   );

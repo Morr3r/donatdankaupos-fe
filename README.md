@@ -27,7 +27,7 @@ The application provides role-based access:
 ## Operational workflow
 
 1. A user signs in with a staff or owner account.
-2. The cashier opens a shift and enters the opening cash and bank balances.
+2. The cashier opens a shift. Cash and bank balances are carried from the previous shift automatically and can be adjusted when an external deposit or withdrawal occurs.
 3. An order is created from the POS screen and paid by cash, QRIS, card, bank transfer, or deferred payment.
 4. Inventory is reduced automatically based on the number of items sold and restored when a transaction is refunded.
 5. The owner monitors sales, inventory, expenses, cost of goods sold, and profit through the dashboard and reports.

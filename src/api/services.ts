@@ -4,6 +4,7 @@ import type {
   Product,
   SaleRequest,
   Shift,
+  ShiftOpeningBalances,
   Transaction,
   ProductOption,
   InventoryItem,
@@ -77,9 +78,10 @@ export const saleService = {
 
 export const shiftService = {
   current: () => apiRequest<Shift | null>('/shifts/current'),
-  open: (openingCash: number, openingBankBalance: number, terminalId: string) => apiRequest<Shift>('/shifts', {
+  nextOpeningBalances: (terminalId: string) => apiRequest<ShiftOpeningBalances>(`/shifts/opening-balances/next?terminalId=${encodeURIComponent(terminalId)}`),
+  open: (openingCash: number, openingBankBalance: number, terminalId: string, carryOverBalances = true) => apiRequest<Shift>('/shifts', {
     method: 'POST',
-    body: { openingBankBalance, openingCash, terminalId },
+    body: { carryOverBalances, openingBankBalance, openingCash, terminalId },
   }),
   updateOpeningBalances: (id: string, openingCash: number, openingBankBalance: number) =>
     apiRequest<Shift>(`/shifts/${id}/opening-balances`, {

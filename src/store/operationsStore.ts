@@ -11,7 +11,7 @@ interface OperationsState {
   hydrate: () => Promise<void>;
   refreshShift: () => Promise<Shift | null>;
   refreshTransactions: () => Promise<void>;
-  openShift: (openingCash: number, openingBankBalance: number, terminalId: string) => Promise<Shift>;
+  openShift: (openingCash: number, openingBankBalance: number, terminalId: string, carryOverBalances?: boolean) => Promise<Shift>;
   updateOpeningBalances: (openingCash: number, openingBankBalance: number) => Promise<Shift>;
   closeShift: (closingCash: number) => Promise<Shift>;
   addTransaction: (transaction: Transaction) => void;
@@ -51,8 +51,8 @@ export const useOperationsStore = create<OperationsState>((set, get) => ({
     const transactions = await saleService.list(shift ? `shiftId=${encodeURIComponent(shift.id)}&limit=1000` : 'limit=200');
     set({ transactions });
   },
-  openShift: async (openingCash, openingBankBalance, terminalId) => {
-    const shift = await shiftService.open(openingCash, openingBankBalance, terminalId);
+  openShift: async (openingCash, openingBankBalance, terminalId, carryOverBalances = true) => {
+    const shift = await shiftService.open(openingCash, openingBankBalance, terminalId, carryOverBalances);
     set({ shift });
     return shift;
   },
