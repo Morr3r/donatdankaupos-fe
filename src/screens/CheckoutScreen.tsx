@@ -3,7 +3,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Banknote, Clock3, CreditCard, Handshake, Landmark, QrCode, ShoppingBag, Tag, UserRound } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { promotionService, saleService } from '../api/services';
+import { saleService } from '../api/services';
 import { BcaTransferDetails } from '../components/bca-transfer-details';
 import { CartRow } from '../components/pos';
 import { Button, Chip, Divider, Field, GlassCard, Header, ScalePressable, Screen, SectionHeader } from '../components/ui';
@@ -44,19 +44,21 @@ export function CheckoutScreen({ navigation }: Props) {
   const [orderType, setOrderType] = useState<OrderType>('takeaway');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [customerName, setCustomerName] = useState('');
-  const [voucher, setVoucher] = useState('');
-  const [discount, setDiscount] = useState(0);
+  const [discountInput, setDiscountInput] = useState('');
   const [amountPaid, setAmountPaid] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [customerError, setCustomerError] = useState<string | null>(null);
   const [processing, setProcessing] = useState<'payment' | 'deferred' | null>(null);
-  const [validatingVoucher, setValidatingVoucher] = useState(false);
+  const numericDiscount = parseNumericInput(discountInput);
   const totals = useMemo(() => getCartTotals(
     cart,
-    discount,
+    numericDiscount,
     orderType,
     user?.dineInServiceRateBps ?? 0,
-  ), [cart, discount, orderType, user?.dineInServiceRateBps]);
+  ), [cart, numericDiscount, orderType, user?.dineInServiceRateBps]);
+  const discountError = numericDiscount > totals.subtotal
+    ? `Diskon maksimal ${formatCurrency(totals.subtotal)}.`
+    : null;
   const numericPaid = parseNumericInput(amountPaid);
   const suggestions = useMemo(() => {
     const rounded50 = Math.ceil(totals.total / 50_000) * 50_000;
@@ -64,30 +66,13 @@ export function CheckoutScreen({ navigation }: Props) {
     return Array.from(new Set([totals.total, rounded50, rounded100])).filter((value) => value > 0);
   }, [totals.total]);
 
-  const applyVoucher = async () => {
-    if (!voucher.trim()) {
-      setDiscount(0);
-      setError('Masukkan kode promo terlebih dahulu.');
-      return;
-    }
-    setValidatingVoucher(true);
-    try {
-      const result = await promotionService.validate(voucher.trim(), totals.subtotal);
-      setVoucher(result.code);
-      setDiscount(result.discount);
-      setError(null);
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (voucherError) {
-      setDiscount(0);
-      setError(voucherError instanceof Error ? voucherError.message : 'Promo tidak dapat divalidasi.');
-    } finally {
-      setValidatingVoucher(false);
-    }
-  };
-
   const handlePayment = async (deferPayment = false) => {
     if (!cart.length || !shift || shift.status !== 'open') {
       setError('Keranjang kosong atau shift sudah tidak aktif.');
+      return;
+    }
+    if (discountError) {
+      setError(discountError);
       return;
     }
     if (deferPayment && !customerName.trim()) {
@@ -113,8 +98,7 @@ export function CheckoutScreen({ navigation }: Props) {
       deferPayment,
       pricingMode,
       customerName: customerName.trim() || undefined,
-      voucherCode: voucher.trim() || undefined,
-      discount,
+      discount: numericDiscount,
       amountPaid: paid,
       totals,
     };
@@ -175,11 +159,17 @@ export function CheckoutScreen({ navigation }: Props) {
         {cart.map((item, index) => <View key={item.lineId}>{index > 0 ? <Divider /> : null}<CartRow item={item} onChange={changeQuantity} onRemove={removeLine} /></View>)}
       </GlassCard>
 
-      <SectionHeader title="Promo" />
-      <View style={styles.voucherRow}>
-        <View style={styles.voucherField}><Field autoCapitalize="characters" leftIcon={Tag} onChangeText={setVoucher} placeholder="Kode voucher" value={voucher} /></View>
-        <Button compact label="Pakai" loading={validatingVoucher} onPress={applyVoucher} variant="secondary" />
-      </View>
+      <SectionHeader title="Diskon" />
+      <Field
+        accessibilityLabel="Diskon transaksi opsional"
+        error={discountError}
+        keyboardType="number-pad"
+        label="Nominal diskon (opsional)"
+        leftIcon={Tag}
+        onChangeText={(value) => { setDiscountInput(formatNumericInput(value)); setError(null); }}
+        placeholder="0"
+        value={discountInput}
+      />
 
       <SectionHeader title="Metode pembayaran" />
       <View style={styles.paymentGrid}>
@@ -276,8 +266,6 @@ const styles = StyleSheet.create({
   pricingText: { color: palette.muted, fontFamily: type.regular, fontSize: 10, lineHeight: 15, marginTop: 2 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
   orderCard: { paddingHorizontal: spacing.md },
-  voucherRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing.xs },
-  voucherField: { flex: 1 },
   paymentGrid: { gap: spacing.xs },
   paymentButton: { width: '100%', minHeight: 52, borderRadius: radius.md, paddingHorizontal: spacing.lg, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, backgroundColor: palette.glassStrong, borderColor: palette.line, borderWidth: 1 },
   paymentButtonSelected: { backgroundColor: palette.cocoaDark, borderColor: palette.cocoaDark },

@@ -89,17 +89,18 @@ Produk dengan `isResellerOnly: true` hanya ditampilkan dan dapat dijual pada mod
   "paymentMethod": "qris",
   "pricingMode": "reseller",
   "customerName": "Kak Rani",
-  "discount": 0,
-  "amountPaid": 31080,
-  "totals": { "subtotal": 28000, "discount": 0, "tax": 3080, "service": 0, "total": 31080 }
+  "discount": 3000,
+  "amountPaid": 25000,
+  "totals": { "subtotal": 28000, "discount": 3000, "tax": 0, "service": 0, "total": 25000 }
 }
 ```
 
-Server tidak boleh memercayai harga/tax/discount dari client. Hitung ulang dari price book sesuai
-`pricingMode` (`customer` atau `reseller`), promotion rule, dan konfigurasi pajak; kembalikan
-`409 PRICE_CHANGED` bila kasir perlu mengonfirmasi total baru. Untuk mode reseller, tolak produk
-tanpa `resellerPrice` dengan `409 RESELLER_PRICE_UNAVAILABLE`. Kurangi stok dan buat payment/sale
-lines dalam satu database transaction.
+`discount` adalah nominal rupiah opsional dan bernilai `0` ketika tidak diisi. Server menghitung ulang
+subtotal dari price book sesuai `pricingMode` (`customer` atau `reseller`), lalu memastikan diskon tidak
+negatif dan tidak melebihi subtotal. Tolak diskon berlebih dengan `DISCOUNT_EXCEEDS_SUBTOTAL` dan
+kembalikan `409 PRICE_CHANGED` bila rincian total client tidak cocok dengan perhitungan server. Untuk
+mode reseller, tolak produk tanpa `resellerPrice` dengan `409 RESELLER_PRICE_UNAVAILABLE`. Kurangi stok
+dan buat payment/sale lines dalam satu database transaction.
 
 ## Bentuk error
 

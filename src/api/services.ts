@@ -136,13 +136,6 @@ export const notificationService = {
   testPush: () => apiRequest<PushTestResult>('/notification-devices/test', { method: 'POST' }),
 };
 
-export const promotionService = {
-  validate: (code: string, subtotal: number) => apiRequest<{ code: string; name: string; discount: number }>(
-    '/promotions/validate',
-    { method: 'POST', body: { code, subtotal } },
-  ),
-};
-
 export interface SalesSummary {
   fromDate: string;
   toDate: string;

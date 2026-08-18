@@ -15,7 +15,7 @@ The application provides role-based access:
 
 ## Key features
 
-- **Point of sale and checkout**: product and variant selection, reseller pricing, minimum order quantities, promotions, order notes, and multiple payment methods.
+- **Point of sale and checkout**: product and variant selection, reseller pricing, minimum order quantities, optional manual transaction discounts, order notes, and multiple payment methods.
 - **Daily shifts**: opening cash and bank balances, shift activity summaries, and end-of-shift reconciliation.
 - **Transactions**: order history and details, deferred payment settlement, cancellations, refunds, invoice sharing, and receipt printing through Android thermal printers.
 - **Inventory**: physical stock monitoring for Medium, Large, Mini, and Bomboloni products, stock entries with expiration dates, and owner-authorized adjustments.

@@ -153,7 +153,6 @@ export interface SaleRequest {
   pricingMode: PricingMode;
   customerName?: string;
   notes?: string;
-  voucherCode?: string;
   discount: number;
   amountPaid: number;
   totals: CartTotals;
