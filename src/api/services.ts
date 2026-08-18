@@ -77,7 +77,9 @@ export const saleService = {
 };
 
 export const shiftService = {
-  current: () => apiRequest<Shift | null>('/shifts/current'),
+  current: (terminalId?: string) => apiRequest<Shift | null>(
+    `/shifts/current${terminalId ? `?terminalId=${encodeURIComponent(terminalId)}` : ''}`,
+  ),
   nextOpeningBalances: (terminalId: string) => apiRequest<ShiftOpeningBalances>(`/shifts/opening-balances/next?terminalId=${encodeURIComponent(terminalId)}`),
   open: (openingCash: number, openingBankBalance: number, terminalId: string, carryOverBalances = true) => apiRequest<Shift>('/shifts', {
     method: 'POST',

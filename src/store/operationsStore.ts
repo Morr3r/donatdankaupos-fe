@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { TERMINAL_ID } from '../api/client';
 import { saleService, shiftService } from '../api/services';
 import type { Shift, Transaction } from '../types/domain';
 
@@ -29,7 +30,7 @@ export const useOperationsStore = create<OperationsState>((set, get) => ({
   hydrate: async () => {
     set({ isLoading: true, error: null });
     try {
-      const shift = await shiftService.current();
+      const shift = await shiftService.current(TERMINAL_ID);
       const transactions = await saleService.list(shift ? `shiftId=${encodeURIComponent(shift.id)}&limit=1000` : 'limit=200');
       set({ shift, transactions, hasHydrated: true, isLoading: false });
     } catch (error) {
@@ -42,7 +43,7 @@ export const useOperationsStore = create<OperationsState>((set, get) => ({
     }
   },
   refreshShift: async () => {
-    const shift = await shiftService.current();
+    const shift = await shiftService.current(TERMINAL_ID);
     set({ shift });
     return shift;
   },

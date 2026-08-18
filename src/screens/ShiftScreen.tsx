@@ -230,7 +230,7 @@ export function ShiftScreen({ navigation }: NativeStackScreenProps<RootStackPara
       {expenseOverview?.totalExpenses ? <Text style={styles.expenseSummary}>Total pengeluaran shift ini {formatCurrency(expenseOverview.totalExpenses)}.</Text> : null}
       {expenseError ? <Text accessibilityLiveRegion="assertive" style={styles.expenseError}>{expenseError}</Text> : null}
 
-      <View style={styles.auditNote}><ShieldCheck color={palette.success} size={18} /><Text style={styles.auditText}>Setiap perubahan shift tersimpan bersama petugas, perangkat, dan waktu kejadian.</Text></View>
+      <View style={styles.auditNote}><ShieldCheck color={palette.success} size={18} /><Text style={styles.auditText}>Kas harian ini dipakai bersama oleh seluruh petugas pada terminal. Setiap perubahan tersimpan bersama petugas, perangkat, dan waktu kejadian.</Text></View>
       {shift.status === 'open' ? <Button disabled={editingOpeningBalances || savingOpeningBalances} icon={LockKeyhole} label="Tutup shift" onPress={handleClose} variant="danger" /> : null}
     </Screen>
   );
