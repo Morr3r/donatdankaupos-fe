@@ -1,5 +1,15 @@
 export type UserRole = 'cashier' | 'staff' | 'manager' | 'owner';
 
+export type CatalogViewMode =
+  | 'extra-large-icons'
+  | 'large-icons'
+  | 'medium-icons'
+  | 'small-icons'
+  | 'list'
+  | 'details'
+  | 'tiles'
+  | 'content';
+
 export interface User {
   id: string;
   name: string;

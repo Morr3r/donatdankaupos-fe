@@ -5,7 +5,7 @@ import { ShoppingBag, Sparkles, Trash2 } from 'lucide-react-native';
 import { useCallback, useMemo, useState } from 'react';
 import { Alert, FlatList, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CartFloatingBar, CartRow, PricingModeSelector, ProductCard } from '../components/pos';
+import { CatalogViewSelector, CartFloatingBar, CartRow, PricingModeSelector, ProductCard, ProductDetailsHeader } from '../components/pos';
 import { ProductSelectionModal, type ProductSelectionValue } from '../components/product-selection-modal';
 import { TERMINAL_ID } from '../api/client';
 import { Button, Chip, Divider, GlassCard, Header, IconButton, Screen, SearchField } from '../components/ui';
@@ -14,7 +14,7 @@ import { useCatalogStore } from '../store/catalogStore';
 import { usePOSStore } from '../store/posStore';
 import { useSessionStore } from '../store/sessionStore';
 import { palette, radius, spacing, type } from '../theme/tokens';
-import type { PricingMode, Product, ProductCategory } from '../types/domain';
+import type { CatalogViewMode, PricingMode, Product, ProductCategory } from '../types/domain';
 import { formatCurrency, getCartTotals } from '../utils/format';
 import { useResponsiveLayout } from '../utils/responsive';
 
@@ -22,7 +22,6 @@ export function POSScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { isLandscapePhone, isPhone, isTablet, width } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
-  const numColumns = isTablet ? 3 : isLandscapePhone ? 2 : isPhone ? 1 : 2;
   const [lastAdded, setLastAdded] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const products = useCatalogStore((state) => state.products);
@@ -34,13 +33,16 @@ export function POSScreen() {
   const search = usePOSStore((state) => state.search);
   const category = usePOSStore((state) => state.category);
   const pricingMode = usePOSStore((state) => state.pricingMode);
+  const catalogViewMode = usePOSStore((state) => state.catalogViewMode);
   const setSearch = usePOSStore((state) => state.setSearch);
   const setCategory = usePOSStore((state) => state.setCategory);
   const setPricingMode = usePOSStore((state) => state.setPricingMode);
+  const setCatalogViewMode = usePOSStore((state) => state.setCatalogViewMode);
   const addProduct = usePOSStore((state) => state.addProduct);
   const changeQuantity = usePOSStore((state) => state.changeQuantity);
   const removeLine = usePOSStore((state) => state.removeLine);
   const clearCart = usePOSStore((state) => state.clearCart);
+  const numColumns = getCatalogColumnCount(catalogViewMode, { isLandscapePhone, isPhone, isTablet });
   const totals = useMemo(() => getCartTotals(
     cart,
     0,
@@ -135,6 +137,12 @@ export function POSScreen() {
     ]);
   }, [itemCount, performClearCart]);
 
+  const changeCatalogView = useCallback((mode: CatalogViewMode) => {
+    if (mode === catalogViewMode) return;
+    setCatalogViewMode(mode);
+    Haptics.selectionAsync().catch(() => undefined);
+  }, [catalogViewMode, setCatalogViewMode]);
+
   const catalogHeader = (
     <View>
       <View style={[styles.catalogControls, isLandscapePhone && styles.catalogControlsLandscape]}>
@@ -143,6 +151,7 @@ export function POSScreen() {
         </View>
         <View style={[styles.toolsRow, isLandscapePhone && styles.toolsRowLandscape]}>
           <View style={styles.searchWrap}><SearchField onChangeText={setSearch} value={search} /></View>
+          <CatalogViewSelector compact={width < 720} onChange={changeCatalogView} value={catalogViewMode} />
         </View>
       </View>
       <ScrollView contentContainerStyle={[styles.categories, isLandscapePhone && styles.categoriesLandscape]} horizontal showsHorizontalScrollIndicator={false}>
@@ -152,22 +161,33 @@ export function POSScreen() {
         <Text style={styles.resultText}>{filteredProducts.length} produk · harga {pricingMode === 'reseller' ? 'reseller' : 'pelanggan'}</Text>
         {lastAdded ? <View style={styles.addedPill}><Sparkles color={palette.success} size={14} /><Text style={styles.addedText}>{lastAdded} ditambahkan</Text></View> : null}
       </View>
+      {catalogViewMode === 'details' && filteredProducts.length ? <ProductDetailsHeader compact={isPhone} /> : null}
     </View>
   );
 
   const productList = (
     <FlatList
-      key={`grid-${numColumns}`}
+      key={`${catalogViewMode}-${numColumns}`}
       columnWrapperStyle={numColumns > 1 ? styles.productRow : undefined}
       contentContainerStyle={[styles.productList, { paddingBottom: isTablet ? spacing.lg : isLandscapePhone ? 128 + insets.bottom : 190 + insets.bottom }]}
       data={filteredProducts}
-      initialNumToRender={8}
+      initialNumToRender={12}
       keyboardShouldPersistTaps="handled"
       keyExtractor={(item) => item.id}
       ListEmptyComponent={<EmptyCatalog search={search} />}
       ListHeaderComponent={catalogHeader}
       numColumns={numColumns}
-      renderItem={({ item }) => <ProductCard cartQuantity={productQuantities[item.id] ?? 0} horizontal={isPhone} onPress={handleAdd} pricingMode={pricingMode} product={item} style={[styles.productCell, isPhone ? styles.productCellPhone : { maxWidth: `${100 / numColumns - 2}%` }]} />}
+      renderItem={({ item }) => (
+        <ProductCard
+          cartQuantity={productQuantities[item.id] ?? 0}
+          compactDetails={isPhone}
+          onPress={handleAdd}
+          pricingMode={pricingMode}
+          product={item}
+          style={[styles.productCell, numColumns === 1 ? styles.productCellSingle : { maxWidth: `${100 / numColumns - 2}%` }]}
+          viewMode={catalogViewMode}
+        />
+      )}
       refreshing={isLoading}
       onRefresh={loadCatalog}
       showsVerticalScrollIndicator={false}
@@ -194,6 +214,28 @@ export function POSScreen() {
       <ProductSelectionModal onAdd={confirmAdd} onClose={() => setSelectedProduct(null)} pricingMode={pricingMode} product={selectedProduct} />
     </Screen>
   );
+}
+
+function getCatalogColumnCount(mode: CatalogViewMode, layout: { isLandscapePhone: boolean; isPhone: boolean; isTablet: boolean }) {
+  const { isLandscapePhone, isPhone, isTablet } = layout;
+  switch (mode) {
+    case 'extra-large-icons':
+      return isPhone && !isLandscapePhone ? 1 : 2;
+    case 'large-icons':
+      return 2;
+    case 'medium-icons':
+      return isTablet || isLandscapePhone ? 3 : 2;
+    case 'small-icons':
+      return isTablet || isLandscapePhone ? 4 : 3;
+    case 'list':
+      return isTablet || isLandscapePhone ? 2 : 1;
+    case 'tiles':
+      return isTablet || isLandscapePhone ? 2 : 1;
+    case 'details':
+    case 'content':
+    default:
+      return 1;
+  }
 }
 
 function CartPanel({ cart, itemCount, total, pricingMode, onChange, onRemove, onClear, onCheckout }: {
@@ -256,7 +298,7 @@ const styles = StyleSheet.create({
   productList: { flexGrow: 1 },
   productRow: { gap: spacing.sm, marginBottom: spacing.sm },
   productCell: { flex: 1, minWidth: 0 },
-  productCellPhone: { marginBottom: spacing.sm },
+  productCellSingle: { marginBottom: spacing.sm },
   floatingWrap: { position: 'absolute' },
   floatingWrapPortrait: { left: 0, right: 0 },
   floatingWrapLandscape: { width: '58%', minWidth: 360, maxWidth: 480, right: spacing.xs },

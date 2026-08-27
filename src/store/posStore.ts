@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import type { CartItem, PricingMode, Product, ProductCategory, ProductOption } from '../types/domain';
+import type { CatalogViewMode, CartItem, PricingMode, Product, ProductCategory, ProductOption } from '../types/domain';
 import { selectedVariantIds } from '../utils/cartOptions';
 import { createLocalId, getProductPrice } from '../utils/format';
 
@@ -19,9 +19,11 @@ interface POSState {
   search: string;
   category: ProductCategory;
   pricingMode: PricingMode;
+  catalogViewMode: CatalogViewMode;
   setSearch: (search: string) => void;
   setCategory: (category: ProductCategory) => void;
   setPricingMode: (pricingMode: PricingMode) => void;
+  setCatalogViewMode: (catalogViewMode: CatalogViewMode) => void;
   addProduct: (product: Product, selection?: ProductSelection) => void;
   changeQuantity: (lineId: string, delta: number) => void;
   setLineNote: (lineId: string, note: string) => void;
@@ -37,9 +39,11 @@ export const usePOSStore = create<POSState>()(
       search: '',
       category: 'Semua',
       pricingMode: 'customer',
+      catalogViewMode: 'details',
       setSearch: (search) => set({ search }),
       setCategory: (category) => set({ category }),
       setPricingMode: (pricingMode) => set({ pricingMode }),
+      setCatalogViewMode: (catalogViewMode) => set({ catalogViewMode }),
       addProduct: (product, selection) =>
         set((state) => {
           const resolvedSelection = selection ?? { quantity: Math.max(product.minimumOrderQuantity ?? 1, 1) };
@@ -90,7 +94,7 @@ export const usePOSStore = create<POSState>()(
     {
       name: 'donat-dankau-cart-v1',
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: (state) => ({ cart: state.cart, pricingMode: state.pricingMode }),
+      partialize: (state) => ({ cart: state.cart, pricingMode: state.pricingMode, catalogViewMode: state.catalogViewMode }),
     },
   ),
 );
