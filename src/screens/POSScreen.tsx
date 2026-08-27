@@ -15,7 +15,7 @@ import { usePOSStore } from '../store/posStore';
 import { useSessionStore } from '../store/sessionStore';
 import { palette, radius, spacing, type } from '../theme/tokens';
 import type { CatalogViewMode, PricingMode, Product, ProductCategory } from '../types/domain';
-import { formatCurrency, getCartTotals } from '../utils/format';
+import { formatCurrency, getCartTotals, isProductAvailable } from '../utils/format';
 import { useResponsiveLayout } from '../utils/responsive';
 
 export function POSScreen() {
@@ -68,11 +68,18 @@ export function POSScreen() {
 
   const filteredProducts = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return modeProducts.filter((product) => {
-      const inCategory = category === 'Semua' || product.category === category;
-      const matchesQuery = !query || product.name.toLowerCase().includes(query) || product.sku.toLowerCase().includes(query);
-      return inCategory && matchesQuery;
-    });
+    return modeProducts
+      .filter((product) => {
+        const inCategory = category === 'Semua' || product.category === category;
+        const matchesQuery = !query || product.name.toLowerCase().includes(query) || product.sku.toLowerCase().includes(query);
+        return inCategory && matchesQuery;
+      })
+      .sort((left, right) => {
+        const leftAvailable = isProductAvailable(left);
+        const rightAvailable = isProductAvailable(right);
+        if (leftAvailable === rightAvailable) return 0;
+        return leftAvailable ? -1 : 1;
+      });
   }, [category, modeProducts, search]);
 
   useFocusEffect(useCallback(() => {

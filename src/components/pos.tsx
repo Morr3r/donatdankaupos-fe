@@ -24,7 +24,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { CatalogViewMode, CartItem, PricingMode, Product } from '../types/domain';
 import { palette, radius, shadow, spacing, type } from '../theme/tokens';
 import { selectedOptionSummary } from '../utils/cartOptions';
-import { formatCurrency, formatPackagingLabel, getProductPrice, resolvePiecesPerUnit } from '../utils/format';
+import { formatCurrency, formatPackagingLabel, getProductPrice, isProductAvailable, resolvePiecesPerUnit } from '../utils/format';
 import { useResponsiveLayout } from '../utils/responsive';
 import { GlassCard, ScalePressable, StatusPill } from './ui';
 
@@ -50,8 +50,7 @@ export const ProductCard = memo(function ProductCard({
   const minimumQuantity = Math.max(product.minimumOrderQuantity ?? 1, 1);
   const piecesPerUnit = resolvePiecesPerUnit(product.piecesPerUnit, product.name, product.sourcePackaging);
   const packagingLabel = formatPackagingLabel(product.sourcePackaging, piecesPerUnit);
-  const minimumPieces = minimumQuantity * piecesPerUnit;
-  const soldOut = product.trackInventory && (product.stock ?? 0) < minimumPieces;
+  const soldOut = !isProductAvailable(product);
   const stockLabel = product.trackInventory ? `stok ${product.inventoryItemName ?? 'donat'} ${product.stock ?? 0} pcs` : 'tersedia';
   const cartLabel = cartQuantity > 0 ? `, ${cartQuantity} item di keranjang` : '';
   const activePrice = getProductPrice(product, pricingMode);

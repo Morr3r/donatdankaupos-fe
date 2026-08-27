@@ -47,6 +47,13 @@ export const resolvePiecesPerUnit = (explicitValue: number | null | undefined, .
   return match ? Math.max(1, Number(match[1])) : 1;
 };
 
+export const isProductAvailable = (product: Product) => {
+  if (!product.trackInventory) return true;
+  const minimumQuantity = Math.max(product.minimumOrderQuantity ?? 1, 1);
+  const piecesPerUnit = resolvePiecesPerUnit(product.piecesPerUnit, product.name, product.sourcePackaging);
+  return (product.stock ?? 0) >= minimumQuantity * piecesPerUnit;
+};
+
 export const formatPackagingLabel = (packaging: string | null | undefined, piecesPerUnit: number) => {
   const cleanPackaging = packaging?.trim();
   if (!cleanPackaging) return piecesPerUnit > 1 ? `Isi ${piecesPerUnit} pcs` : '';
