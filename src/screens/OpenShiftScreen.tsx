@@ -11,18 +11,16 @@ import { useSessionStore } from '../store/sessionStore';
 import { formatJakartaBusinessDate } from '../utils/date';
 import { formatCurrency, formatNumericInput, parseNumericInput } from '../utils/format';
 
-const cashSuggestions = [100000, 200000, 300000, 500000];
-
 export function OpenShiftScreen() {
   const [openingPhysicalCash, setOpeningPhysicalCash] = useState('');
   const [openingBankBalance, setOpeningBankBalance] = useState('');
+  const [accumulatedBalances, setAccumulatedBalances] = useState<{ cash: number; bank: number } | null>(null);
   const [physicalError, setPhysicalError] = useState<string | null>(null);
   const [bankError, setBankError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [balancesLoading, setBalancesLoading] = useState(Boolean(TERMINAL_ID));
   const [carriedFromShiftId, setCarriedFromShiftId] = useState<string | null>(null);
-  const [carryOverBalances, setCarryOverBalances] = useState(false);
   const user = useSessionStore((state) => state.user);
   const logout = useSessionStore((state) => state.logout);
   const openShift = useOperationsStore((state) => state.openShift);
@@ -37,10 +35,8 @@ export function OpenShiftScreen() {
     shiftService.nextOpeningBalances(TERMINAL_ID)
       .then((balances) => {
         if (!active || !balances.sourceShiftId) return;
-        setOpeningPhysicalCash(formatNumericInput(balances.openingCash));
-        setOpeningBankBalance(formatNumericInput(balances.openingBankBalance));
+        setAccumulatedBalances({ cash: balances.openingCash, bank: balances.openingBankBalance });
         setCarriedFromShiftId(balances.sourceShiftId);
-        setCarryOverBalances(true);
       })
       .catch((loadError) => {
         if (active) setSubmitError(loadError instanceof Error ? loadError.message : 'Saldo sebelumnya tidak dapat dimuat.');
@@ -72,7 +68,7 @@ export function OpenShiftScreen() {
     }
     setSubmitting(true);
     try {
-      await openShift(physicalValue, bankValue, TERMINAL_ID, carryOverBalances);
+      await openShift(physicalValue, bankValue, TERMINAL_ID, false);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (openError) {
       setSubmitError(openError instanceof Error ? openError.message : 'Shift tidak dapat dibuka.');
@@ -89,9 +85,9 @@ export function OpenShiftScreen() {
       </View>
 
       <View style={styles.hero}>
-        <StatusPill label={carriedFromShiftId ? 'Saldo diteruskan' : 'Buka shift'} tone={carriedFromShiftId ? 'success' : 'warning'} />
+        <StatusPill label={carriedFromShiftId ? 'Saldo sebelumnya tersedia' : 'Buka shift'} tone={carriedFromShiftId ? 'success' : 'warning'} />
         <Text accessibilityRole="header" style={styles.title}>Buka shift hari ini</Text>
-        <Text style={styles.subtitle}>{carriedFromShiftId ? 'Saldo akhir shift sebelumnya sudah otomatis diteruskan. Periksa lalu buka shift baru.' : 'Sebelum mulai berjualan, catat saldo kas tunai dan non-tunai hari ini.'}</Text>
+        <Text style={styles.subtitle}>{carriedFromShiftId ? 'Saldo akhir shift sebelumnya ditampilkan sebagai acuan. Isi saldo aktual untuk membuka shift baru.' : 'Sebelum mulai berjualan, catat saldo kas tunai dan non-tunai hari ini.'}</Text>
       </View>
 
       <GlassCard contentStyle={styles.shiftCard}>
@@ -109,39 +105,36 @@ export function OpenShiftScreen() {
         </View>
 
         <Field
+          accessibilityLabel={accumulatedBalances ? `Kas tunai awal. Hasil akumulasi ${formatCurrency(accumulatedBalances.cash)}` : 'Kas tunai awal'}
           editable={!balancesLoading}
           error={physicalError}
           keyboardType="number-pad"
           label="Kas tunai awal"
+          labelRight={accumulatedBalances ? `Hasil akumulasi: ${formatCurrency(accumulatedBalances.cash)}` : undefined}
           leftIcon={Banknote}
-          onChangeText={(value) => { setOpeningPhysicalCash(formatNumericInput(value)); setCarryOverBalances(false); setPhysicalError(null); setSubmitError(null); }}
+          onChangeText={(value) => { setOpeningPhysicalCash(formatNumericInput(value)); setPhysicalError(null); setSubmitError(null); }}
           placeholder="0"
           value={openingPhysicalCash}
         />
-        <Text style={styles.amountPreview}>{formatCurrency(parseNumericInput(openingPhysicalCash))}</Text>
-
-        <Text style={styles.suggestionLabel}>Nominal cepat kas tunai</Text>
-        <View style={styles.suggestions}>
-          {cashSuggestions.map((amount) => (
-            <Button key={amount} compact disabled={balancesLoading} label={formatCurrency(amount).replace('Rp', 'Rp ')} onPress={() => { setOpeningPhysicalCash(formatNumericInput(amount)); setCarryOverBalances(false); setPhysicalError(null); setSubmitError(null); }} style={styles.suggestionButton} variant={parseNumericInput(openingPhysicalCash) === amount ? 'primary' : 'secondary'} />
-          ))}
-        </View>
+        <Text style={styles.amountPreview}>{openingPhysicalCash.trim() ? formatCurrency(parseNumericInput(openingPhysicalCash)) : ' '}</Text>
 
         <Field
+          accessibilityLabel={accumulatedBalances ? `Kas non-tunai awal. Hasil akumulasi ${formatCurrency(accumulatedBalances.bank)}` : 'Kas non-tunai awal'}
           editable={!balancesLoading}
           error={bankError}
           keyboardType="number-pad"
           label="Kas non-tunai awal"
+          labelRight={accumulatedBalances ? `Hasil akumulasi: ${formatCurrency(accumulatedBalances.bank)}` : undefined}
           leftIcon={Landmark}
-          onChangeText={(value) => { setOpeningBankBalance(formatNumericInput(value)); setCarryOverBalances(false); setBankError(null); setSubmitError(null); }}
+          onChangeText={(value) => { setOpeningBankBalance(formatNumericInput(value)); setBankError(null); setSubmitError(null); }}
           placeholder="0"
           value={openingBankBalance}
         />
-        <Text style={styles.amountPreview}>{formatCurrency(parseNumericInput(openingBankBalance))}</Text>
+        <Text style={styles.amountPreview}>{openingBankBalance.trim() ? formatCurrency(parseNumericInput(openingBankBalance)) : ' '}</Text>
 
         {submitError ? <Text style={styles.formError}>{submitError}</Text> : null}
         <Button disabled={!hasOpeningBalances || balancesLoading} icon={Clock3} label={balancesLoading ? 'Memuat saldo sebelumnya...' : 'Buka shift & mulai jualan'} loading={submitting} onPress={handleOpen} />
-        <Text style={styles.helper}>{carriedFromShiftId ? (carryOverBalances ? 'Kas tunai dan rekening tetap tersimpan setelah tutup shift. Ubah nominal hanya jika ada setoran atau penarikan di luar aplikasi.' : 'Saldo lanjutan sudah disesuaikan manual dan akan dipakai sebagai saldo awal shift ini.') : 'Kedua field wajib diisi untuk shift pertama. Masukkan angka 0 jika saldo kas tunai atau non-tunai kosong.'}</Text>
+        <Text style={styles.helper}>{carriedFromShiftId ? 'Bandingkan saldo aktual dengan hasil akumulasi, lalu isi kedua field. Masukkan angka 0 jika saldo kosong.' : 'Kedua field wajib diisi untuk shift pertama. Masukkan angka 0 jika saldo kas tunai atau non-tunai kosong.'}</Text>
       </GlassCard>
     </Screen>
   );
@@ -163,9 +156,6 @@ const styles = StyleSheet.create({
   summaryLabel: { color: palette.muted, fontFamily: type.medium, fontSize: 10, marginTop: spacing.sm },
   summaryValue: { color: palette.ink, fontFamily: type.bold, fontSize: 14, marginTop: 2 },
   amountPreview: { color: palette.cocoa, fontFamily: type.display, fontSize: 25, textAlign: 'center', marginTop: -spacing.sm },
-  suggestionLabel: { color: palette.muted, fontFamily: type.medium, fontSize: 10, marginBottom: -spacing.sm },
-  suggestions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
-  suggestionButton: { flexGrow: 1, minWidth: 112 },
   formError: { color: palette.danger, fontFamily: type.medium, fontSize: 11, lineHeight: 16, textAlign: 'center' },
   helper: { color: palette.muted, fontFamily: type.regular, fontSize: 10, lineHeight: 15, textAlign: 'center' },
 });

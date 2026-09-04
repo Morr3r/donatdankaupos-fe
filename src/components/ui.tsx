@@ -289,15 +289,21 @@ export function Header({ eyebrow, brand, title, subtitle, onBack, right }: Heade
 
 interface FieldProps extends TextInputProps {
   label?: string;
+  labelRight?: string;
   error?: string | null;
   leftIcon?: IconType;
 }
 
-export function Field({ label, error, leftIcon: LeftIcon, secureTextEntry, style, ...props }: FieldProps) {
+export function Field({ label, labelRight, error, leftIcon: LeftIcon, secureTextEntry, style, ...props }: FieldProps) {
   const [secure, setSecure] = useState(Boolean(secureTextEntry));
   return (
     <View style={styles.fieldGroup}>
-      {label ? <Text style={styles.fieldLabel}>{label}</Text> : null}
+      {label ? (
+        <View style={styles.fieldLabelRow}>
+          <Text style={styles.fieldLabel}>{label}</Text>
+          {labelRight ? <Text style={styles.fieldLabelRight}>{labelRight}</Text> : null}
+        </View>
+      ) : null}
       <View style={[styles.field, error ? styles.fieldError : null]}>
         {LeftIcon ? <LeftIcon color={palette.muted} size={20} /> : null}
         <TextInput
@@ -428,7 +434,9 @@ const styles = StyleSheet.create({
   headerSubtitle: { color: palette.muted, fontFamily: type.regular, fontSize: 13, lineHeight: 18, marginTop: 2 },
   headerSubtitleLandscape: { fontSize: 11, lineHeight: 15 },
   fieldGroup: { gap: spacing.xs },
-  fieldLabel: { color: palette.inkSoft, fontFamily: type.semibold, fontSize: 13, marginLeft: 2 },
+  fieldLabelRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: spacing.xs, paddingHorizontal: 2 },
+  fieldLabel: { flexShrink: 1, color: palette.inkSoft, fontFamily: type.semibold, fontSize: 13 },
+  fieldLabelRight: { flexShrink: 1, color: palette.muted, fontFamily: type.medium, fontSize: 12, textAlign: 'right' },
   field: { minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: 'rgba(255,255,255,0.78)', borderRadius: radius.md, borderWidth: 1, borderColor: palette.line, paddingHorizontal: spacing.md },
   fieldError: { borderColor: palette.danger },
   fieldInput: { flex: 1, minHeight: 52, color: palette.ink, fontFamily: type.medium, fontSize: 15, paddingVertical: spacing.sm },
