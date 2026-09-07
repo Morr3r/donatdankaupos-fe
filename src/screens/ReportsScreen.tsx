@@ -1,8 +1,8 @@
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { useFocusEffect } from '@react-navigation/native';
-import { FileSpreadsheet, PackageCheck, ReceiptText, RefreshCw, TrendingUp, WalletCards } from 'lucide-react-native';
-import { useCallback, useState } from 'react';
+import { Banknote, FileSpreadsheet, Landmark, PackageCheck, ReceiptText, RefreshCw, TrendingUp, WalletCards } from 'lucide-react-native';
+import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { reportService, type SalesSummary } from '../api/services';
 import { BarChart, MetricCard, ProgressRow } from '../components/data';
@@ -16,28 +16,35 @@ const DEFAULT_HPP_PER_ITEM = 2_650;
 
 export function ReportsScreen() {
   const { width } = useWindowDimensions();
-  const [range, setRange] = useState<DateRangeSelection>(() => makeDateRange('month'));
+  const [range, setRange] = useState<DateRangeSelection>(() => makeDateRange('day'));
   const [summary, setSummary] = useState<SalesSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const reportRequestId = useRef(0);
   const from = toDateParam(range.from);
   const to = toDateParam(range.to);
 
   const loadReport = useCallback(async () => {
+    const requestId = ++reportRequestId.current;
     setLoading(true);
     setError(null);
+    setSummary(null);
     try {
-      setSummary(await reportService.summary(from, to));
+      const result = await reportService.summary(from, to);
+      if (requestId === reportRequestId.current) setSummary(result);
     } catch (reportError) {
-      setError(reportError instanceof Error ? reportError.message : 'Laporan tidak dapat dimuat.');
+      if (requestId === reportRequestId.current) {
+        setError(reportError instanceof Error ? reportError.message : 'Laporan tidak dapat dimuat.');
+      }
     } finally {
-      setLoading(false);
+      if (requestId === reportRequestId.current) setLoading(false);
     }
   }, [from, to]);
 
   useFocusEffect(useCallback(() => {
-    loadReport();
+    void loadReport();
+    return () => { reportRequestId.current += 1; };
   }, [loadReport]));
 
   const exportExcel = async () => {
@@ -107,6 +114,34 @@ export function ReportsScreen() {
         <View style={[styles.metric, compact && styles.metricPhone, narrow && styles.metricNarrow]}><MetricCard accent={palette.success} helper={netProfitHelper} icon={<WalletCards color={palette.success} size={21} />} label="Laba bersih" value={formatCompact(netProfit)} /></View>
       </View>
 
+      <SectionHeader title={`Pengeluaran · ${rangeLabel}`} />
+      <GlassCard contentStyle={[styles.expenseCard, compact && styles.expenseCardCompact]}>
+        {loading ? (
+          <View accessibilityLiveRegion="polite" style={styles.expenseLoading}>
+            <ActivityIndicator color={palette.cocoa} />
+            <Text style={styles.expenseHelper}>Memuat pengeluaran…</Text>
+          </View>
+        ) : summary?.totalExpenses !== undefined ? (
+          <>
+            <View>
+              <Text style={styles.expenseLabel}>Total pengeluaran</Text>
+              <Text style={styles.expenseTotal}>{formatCurrency(summary.totalExpenses)}</Text>
+              <Text style={styles.expenseHelper}>{summary.expenseCount ? `${summary.expenseCount} pengeluaran · Tidak termasuk yang dibatalkan` : 'Belum ada pengeluaran pada periode ini.'}</Text>
+            </View>
+            <View style={styles.expenseBreakdown}>
+              <View style={styles.expenseSource}>
+                <View style={styles.expenseSourceLabel}><Banknote color={palette.cocoa} size={18} /><Text style={styles.expenseLabel}>Kas tunai</Text></View>
+                <Text style={styles.expenseAmount}>{formatCurrency(summary.cashExpenses)}</Text>
+              </View>
+              <View style={styles.expenseSource}>
+                <View style={styles.expenseSourceLabel}><Landmark color={palette.cocoa} size={18} /><Text style={styles.expenseLabel}>Kas non-tunai</Text></View>
+                <Text style={styles.expenseAmount}>{formatCurrency(summary.bankExpenses)}</Text>
+              </View>
+            </View>
+          </>
+        ) : <Text style={styles.expenseHelper}>Data pengeluaran belum tersedia. Muat ulang laporan untuk mencoba lagi.</Text>}
+      </GlassCard>
+
       <SectionHeader title={`Penjualan · ${rangeLabel}`} />
       <GlassCard contentStyle={[styles.chartCard, compact && styles.chartCardCompact]}>
         <View style={[styles.chartHeading, compact && styles.chartHeadingCompact]}><View style={styles.chartCopy}><Text adjustsFontSizeToFit numberOfLines={1} style={styles.chartTitle}>{formatCurrency(revenue)}</Text><Text style={styles.chartSubtitle}>{loading ? 'Memuat data…' : `${summary?.transactionCount ?? 0} transaksi berhasil pada periode ini`}</Text></View>{summary?.previousPeriodGrowthPercent !== null && summary?.previousPeriodGrowthPercent !== undefined ? <View style={styles.growth}><TrendingUp color={palette.success} size={16} /><Text style={styles.growthText}>{summary.previousPeriodGrowthPercent >= 0 ? '+' : ''}{summary.previousPeriodGrowthPercent}%</Text></View> : null}</View>
@@ -151,6 +186,16 @@ const styles = StyleSheet.create({
   metric: { minWidth: 150, flexGrow: 1, flexBasis: 0 },
   metricPhone: { flexBasis: '46%' },
   metricNarrow: { minWidth: '100%', flexBasis: '100%' },
+  expenseCard: { padding: spacing.lg, gap: spacing.md },
+  expenseCardCompact: { padding: spacing.md },
+  expenseLoading: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 120 },
+  expenseLabel: { color: palette.inkSoft, fontFamily: type.medium, fontSize: 12, flexShrink: 1 },
+  expenseTotal: { color: palette.cocoa, fontFamily: type.bold, fontSize: 26, marginTop: spacing.xxs, fontVariant: ['tabular-nums'] },
+  expenseHelper: { color: palette.muted, fontFamily: type.regular, fontSize: 12, lineHeight: 18, marginTop: spacing.xxs },
+  expenseBreakdown: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, borderTopWidth: 1, borderTopColor: palette.line, paddingTop: spacing.md },
+  expenseSource: { flexGrow: 1, flexBasis: 140, minWidth: 0, gap: spacing.xs },
+  expenseSourceLabel: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  expenseAmount: { color: palette.ink, fontFamily: type.semibold, fontSize: 16, fontVariant: ['tabular-nums'] },
   chartCard: { padding: spacing.lg },
   chartCardCompact: { padding: spacing.md },
   chartHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },

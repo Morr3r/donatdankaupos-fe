@@ -151,6 +151,10 @@ export interface SalesSummary {
   netProfit: number;
   netMarginPercent: number | null;
   previousPeriodGrowthPercent: number | null;
+  totalExpenses: number;
+  expenseCount: number;
+  cashExpenses: number;
+  bankExpenses: number;
   series: { label: string; value: number }[];
   paymentBreakdown: { method: NonNullable<Transaction['paymentMethod']>; value: number; transactionCount: number }[];
   topProducts: { productId: string; name: string; sold: number; revenue: number }[];
