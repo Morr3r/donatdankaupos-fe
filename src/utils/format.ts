@@ -68,19 +68,22 @@ export const getCartTotals = (
   discount: number,
   orderType: OrderType,
   dineInServiceRateBps: number,
+  deliveryFee = 0,
 ): CartTotals => {
   const subtotal = items.reduce((total, item) => total + item.price * item.quantity, 0);
   const discountAmount = Math.min(Math.max(discount, 0), subtotal);
   const taxable = subtotal - discountAmount;
   const tax = 0;
   const service = orderType === 'dine_in' ? Math.round((taxable * dineInServiceRateBps) / 10_000) : 0;
+  const normalizedDeliveryFee = orderType === 'delivery' ? Math.max(deliveryFee, 0) : 0;
 
   return {
     subtotal,
     discount: discountAmount,
+    deliveryFee: normalizedDeliveryFee,
     tax,
     service,
-    total: taxable + tax + service,
+    total: taxable + normalizedDeliveryFee + tax + service,
   };
 };
 

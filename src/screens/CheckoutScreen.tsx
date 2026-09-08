@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Banknote, Clock3, CreditCard, Handshake, Landmark, QrCode, ShoppingBag, Tag, UserRound } from 'lucide-react-native';
+import { Banknote, Clock3, CreditCard, Handshake, Landmark, QrCode, ShoppingBag, Tag, Truck, UserRound } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { saleService } from '../api/services';
@@ -45,17 +45,20 @@ export function CheckoutScreen({ navigation }: Props) {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [customerName, setCustomerName] = useState('');
   const [discountInput, setDiscountInput] = useState('');
+  const [deliveryFeeInput, setDeliveryFeeInput] = useState('');
   const [amountPaid, setAmountPaid] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [customerError, setCustomerError] = useState<string | null>(null);
   const [processing, setProcessing] = useState<'payment' | 'deferred' | null>(null);
   const numericDiscount = parseNumericInput(discountInput);
+  const numericDeliveryFee = orderType === 'delivery' ? parseNumericInput(deliveryFeeInput) : 0;
   const totals = useMemo(() => getCartTotals(
     cart,
     numericDiscount,
     orderType,
     user?.dineInServiceRateBps ?? 0,
-  ), [cart, numericDiscount, orderType, user?.dineInServiceRateBps]);
+    numericDeliveryFee,
+  ), [cart, numericDeliveryFee, numericDiscount, orderType, user?.dineInServiceRateBps]);
   const discountError = numericDiscount > totals.subtotal
     ? `Diskon maksimal ${formatCurrency(totals.subtotal)}.`
     : null;
@@ -99,6 +102,7 @@ export function CheckoutScreen({ navigation }: Props) {
       pricingMode,
       customerName: customerName.trim() || undefined,
       discount: numericDiscount,
+      deliveryFee: numericDeliveryFee,
       amountPaid: paid,
       totals,
     };
@@ -141,7 +145,7 @@ export function CheckoutScreen({ navigation }: Props) {
       </GlassCard>
 
       <SectionHeader title="Jenis pesanan" />
-      <View style={styles.chips}>{orderTypes.map((item) => <Chip key={item.id} label={item.label} onPress={() => setOrderType(item.id)} selected={orderType === item.id} />)}</View>
+      <View style={styles.chips}>{orderTypes.map((item) => <Chip key={item.id} label={item.label} onPress={() => { setOrderType(item.id); if (item.id !== 'delivery') setDeliveryFeeInput(''); setError(null); }} selected={orderType === item.id} />)}</View>
 
       <SectionHeader title="Detail pelanggan" />
       <Field
@@ -170,6 +174,22 @@ export function CheckoutScreen({ navigation }: Props) {
         placeholder="0"
         value={discountInput}
       />
+
+      {orderType === 'delivery' ? (
+        <>
+          <SectionHeader title="Ongkos kirim" />
+          <Field
+            accessibilityLabel="Ongkos kirim pesanan delivery"
+            helper="Nominal ini ditambahkan ke total pembayaran dan tercetak pada struk."
+            keyboardType="number-pad"
+            label="Nominal ongkos kirim"
+            leftIcon={Truck}
+            onChangeText={(value) => { setDeliveryFeeInput(formatNumericInput(value)); setError(null); }}
+            placeholder="0"
+            value={deliveryFeeInput}
+          />
+        </>
+      ) : null}
 
       <SectionHeader title="Metode pembayaran" />
       <View style={styles.paymentGrid}>
@@ -204,6 +224,7 @@ export function CheckoutScreen({ navigation }: Props) {
       <GlassCard contentStyle={styles.totalCard}>
         <SummaryRow label="Subtotal" value={formatCurrency(totals.subtotal)} />
         {totals.discount ? <SummaryRow label="Diskon" tone="success" value={`− ${formatCurrency(totals.discount)}`} /> : null}
+        {totals.deliveryFee ? <SummaryRow label="Ongkos kirim" value={formatCurrency(totals.deliveryFee)} /> : null}
         {totals.service ? <SummaryRow label="Biaya layanan" value={formatCurrency(totals.service)} /> : null}
         <Divider />
         <View style={styles.grandRow}><Text style={styles.grandLabel}>Total bayar</Text><Text style={styles.grandValue}>{formatCurrency(totals.total)}</Text></View>

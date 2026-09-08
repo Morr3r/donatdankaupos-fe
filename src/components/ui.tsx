@@ -290,11 +290,12 @@ export function Header({ eyebrow, brand, title, subtitle, onBack, right }: Heade
 interface FieldProps extends TextInputProps {
   label?: string;
   labelRight?: string;
+  helper?: string;
   error?: string | null;
   leftIcon?: IconType;
 }
 
-export function Field({ label, labelRight, error, leftIcon: LeftIcon, secureTextEntry, style, ...props }: FieldProps) {
+export function Field({ label, labelRight, helper, error, leftIcon: LeftIcon, secureTextEntry, style, ...props }: FieldProps) {
   const [secure, setSecure] = useState(Boolean(secureTextEntry));
   return (
     <View style={styles.fieldGroup}>
@@ -320,6 +321,7 @@ export function Field({ label, labelRight, error, leftIcon: LeftIcon, secureText
         ) : null}
       </View>
       {error ? <Text accessibilityLiveRegion="polite" style={styles.fieldErrorText}>{error}</Text> : null}
+      {!error && helper ? <Text style={styles.fieldHelperText}>{helper}</Text> : null}
     </View>
   );
 }
@@ -442,6 +444,7 @@ const styles = StyleSheet.create({
   fieldInput: { flex: 1, minHeight: 52, color: palette.ink, fontFamily: type.medium, fontSize: 15, paddingVertical: spacing.sm },
   fieldAction: { width: 40, height: 48, alignItems: 'center', justifyContent: 'center' },
   fieldErrorText: { color: palette.danger, fontFamily: type.medium, fontSize: 12, lineHeight: 17 },
+  fieldHelperText: { color: palette.muted, fontFamily: type.regular, fontSize: 11, lineHeight: 17 },
   searchField: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderRadius: radius.md, paddingHorizontal: spacing.md, borderWidth: 1, borderColor: palette.line, backgroundColor: 'rgba(255,255,255,0.78)' },
   searchInput: { flex: 1, minHeight: 50, color: palette.ink, fontFamily: type.medium, fontSize: 15 },
   chip: { minHeight: 48, paddingHorizontal: spacing.md, borderRadius: radius.pill, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.64)', borderWidth: 1, borderColor: palette.line },

@@ -308,6 +308,9 @@ function appendReceiptCopy(
   if (transaction.discount > 0) {
     appendAmountRow(bytes, 'Diskon', `-${formatReceiptMoney(transaction.discount)}`, receiptWidth);
   }
+  if (transaction.deliveryFee > 0) {
+    appendAmountRow(bytes, 'Ongkos kirim', formatReceiptMoney(transaction.deliveryFee), receiptWidth);
+  }
   if (transaction.tax > 0) appendAmountRow(bytes, 'Pajak', formatReceiptMoney(transaction.tax), receiptWidth);
   if (transaction.service > 0) {
     appendAmountRow(bytes, 'Biaya layanan', formatReceiptMoney(transaction.service), receiptWidth);

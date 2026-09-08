@@ -162,6 +162,14 @@ export function OrderDetailScreen({ navigation, route }: Props) {
       <GlassCard contentStyle={styles.infoCard}>
         <InfoRow label="Pelanggan" value={transaction.customerName ?? 'Pelanggan umum'} />
         <InfoRow label="Kasir" value={transaction.cashierName} />
+        <Divider />
+        <InfoRow label="Subtotal" value={formatCurrency(transaction.subtotal)} />
+        {transaction.discount > 0 ? <InfoRow label="Diskon" value={`− ${formatCurrency(transaction.discount)}`} /> : null}
+        {transaction.deliveryFee > 0 ? <InfoRow label="Ongkos kirim" value={formatCurrency(transaction.deliveryFee)} /> : null}
+        {transaction.tax > 0 ? <InfoRow label="Pajak" value={formatCurrency(transaction.tax)} /> : null}
+        {transaction.service > 0 ? <InfoRow label="Biaya layanan" value={formatCurrency(transaction.service)} /> : null}
+        <InfoRow label="Total pembayaran" value={formatCurrency(transaction.total)} />
+        <Divider />
         <InfoRow label="Metode bayar" value={getPaymentLabel(transaction.paymentMethod)} />
         <InfoRow label="Jenis harga" value={pricingModeLabels[transaction.pricingMode]} />
         {transaction.status !== 'pending' ? <InfoRow label="Uang diterima" value={formatCurrency(transaction.amountPaid)} /> : null}

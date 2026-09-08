@@ -158,6 +158,7 @@ export type TransactionStatus = 'pending' | 'paid' | 'refunded';
 export interface CartTotals {
   subtotal: number;
   discount: number;
+  deliveryFee: number;
   tax: number;
   service: number;
   total: number;
@@ -174,6 +175,7 @@ export interface SaleRequest {
   customerName?: string;
   notes?: string;
   discount: number;
+  deliveryFee: number;
   amountPaid: number;
   totals: CartTotals;
 }
@@ -196,6 +198,7 @@ export interface Transaction {
   status: TransactionStatus;
   subtotal: number;
   discount: number;
+  deliveryFee: number;
   tax: number;
   service: number;
   total: number;

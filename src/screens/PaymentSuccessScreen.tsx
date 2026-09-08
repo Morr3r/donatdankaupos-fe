@@ -158,6 +158,7 @@ export function PaymentSuccessScreen({ navigation, route }: Props) {
         <DetailRow label="Jumlah donat" value={`${transaction.pieceCount} pcs`} />
         <DetailRow label="Subtotal" value={formatCurrency(transaction.subtotal)} />
         {transaction.discount > 0 ? <DetailRow label="Diskon" value={`− ${formatCurrency(transaction.discount)}`} /> : null}
+        {transaction.deliveryFee > 0 ? <DetailRow label="Ongkos kirim" value={formatCurrency(transaction.deliveryFee)} /> : null}
         {transaction.tax > 0 ? <DetailRow label="Pajak" value={formatCurrency(transaction.tax)} /> : null}
         {transaction.service > 0 ? <DetailRow label="Biaya layanan" value={formatCurrency(transaction.service)} /> : null}
         <View style={styles.invoiceTotalRow}><Text style={styles.invoiceTotalLabel}>Total pembayaran</Text><Text style={styles.invoiceTotalValue}>{formatCurrency(transaction.total)}</Text></View>
