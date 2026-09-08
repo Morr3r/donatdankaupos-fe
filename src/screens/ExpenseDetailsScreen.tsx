@@ -344,7 +344,7 @@ const styles = StyleSheet.create({
   noticeText: { color: palette.success, fontFamily: type.semibold, fontSize: 12, lineHeight: 18 },
   errorPanel: { gap: spacing.sm, borderRadius: radius.md, backgroundColor: palette.dangerSoft, padding: spacing.md, marginTop: spacing.md },
   errorText: { color: palette.danger, fontFamily: type.medium, fontSize: 12, lineHeight: 18 },
-  toolbar: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: spacing.md, borderRadius: radius.lg, borderWidth: 1, borderColor: palette.line, backgroundColor: 'rgba(255,255,255,0.55)', padding: spacing.md },
+  toolbar: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: spacing.md, borderRadius: radius.lg, borderWidth: 1, borderColor: palette.line, backgroundColor: 'rgba(255,255,255,0.55)', padding: spacing.md, marginBottom: spacing.md },
   toolbarCopy: { flex: 1, minWidth: 0 },
   toolbarTitle: { color: palette.ink, fontFamily: type.bold, fontSize: 13 },
   toolbarHelper: { color: palette.muted, fontFamily: type.regular, fontSize: 10, lineHeight: 16, marginTop: 3 },
