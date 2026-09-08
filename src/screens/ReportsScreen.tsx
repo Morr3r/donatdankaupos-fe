@@ -1,13 +1,15 @@
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
-import { useFocusEffect } from '@react-navigation/native';
-import { Banknote, FileSpreadsheet, Landmark, PackageCheck, ReceiptText, RefreshCw, TrendingUp, WalletCards } from 'lucide-react-native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Banknote, ChevronRight, FileSpreadsheet, Landmark, PackageCheck, ReceiptText, RefreshCw, TrendingUp, WalletCards } from 'lucide-react-native';
 import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { reportService, type SalesSummary } from '../api/services';
 import { BarChart, MetricCard, ProgressRow } from '../components/data';
 import { DateRangePicker } from '../components/date-range-picker';
-import { Button, GlassCard, Header, Screen, SectionHeader } from '../components/ui';
+import { Button, GlassCard, Header, ScalePressable, Screen, SectionHeader } from '../components/ui';
+import type { RootStackParamList } from '../navigation/types';
 import { palette, spacing, type } from '../theme/tokens';
 import { type DateRangeSelection, formatRangeLabel, makeDateRange, toDateParam } from '../utils/date';
 import { formatCompact, formatCurrency, formatPercent, paymentLabels } from '../utils/format';
@@ -15,6 +17,7 @@ import { formatCompact, formatCurrency, formatPercent, paymentLabels } from '../
 const DEFAULT_HPP_PER_ITEM = 2_650;
 
 export function ReportsScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { width } = useWindowDimensions();
   const [range, setRange] = useState<DateRangeSelection>(() => makeDateRange('day'));
   const [summary, setSummary] = useState<SalesSummary | null>(null);
@@ -115,6 +118,12 @@ export function ReportsScreen() {
       </View>
 
       <SectionHeader title={`Pengeluaran · ${rangeLabel}`} />
+      <ScalePressable
+        accessibilityHint="Membuka daftar pengeluaran untuk periode laporan ini"
+        accessibilityLabel={`Lihat detail pengeluaran ${rangeLabel}`}
+        onPress={() => navigation.navigate('ExpenseDetails', { from, to, rangeLabel })}
+        style={styles.expenseCardPressable}
+      >
       <GlassCard contentStyle={[styles.expenseCard, compact && styles.expenseCardCompact]}>
         {loading ? (
           <View accessibilityLiveRegion="polite" style={styles.expenseLoading}>
@@ -140,7 +149,12 @@ export function ReportsScreen() {
             </View>
           </>
         ) : <Text style={styles.expenseHelper}>Data pengeluaran belum tersedia. Muat ulang laporan untuk mencoba lagi.</Text>}
+        <View style={styles.expenseDetailAction}>
+          <Text style={styles.expenseDetailText}>Lihat rincian dan kelola pengeluaran</Text>
+          <ChevronRight color={palette.cocoa} size={20} />
+        </View>
       </GlassCard>
+      </ScalePressable>
 
       <SectionHeader title={`Penjualan · ${rangeLabel}`} />
       <GlassCard contentStyle={[styles.chartCard, compact && styles.chartCardCompact]}>
@@ -187,6 +201,7 @@ const styles = StyleSheet.create({
   metricPhone: { flexBasis: '46%' },
   metricNarrow: { minWidth: '100%', flexBasis: '100%' },
   expenseCard: { padding: spacing.lg, gap: spacing.md },
+  expenseCardPressable: { borderRadius: 24 },
   expenseCardCompact: { padding: spacing.md },
   expenseLoading: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 120 },
   expenseLabel: { color: palette.inkSoft, fontFamily: type.medium, fontSize: 12, flexShrink: 1 },
@@ -196,6 +211,8 @@ const styles = StyleSheet.create({
   expenseSource: { flexGrow: 1, flexBasis: 140, minWidth: 0, gap: spacing.xs },
   expenseSourceLabel: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   expenseAmount: { color: palette.ink, fontFamily: type.semibold, fontSize: 16, fontVariant: ['tabular-nums'] },
+  expenseDetailAction: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, borderTopWidth: 1, borderTopColor: palette.line, paddingTop: spacing.sm },
+  expenseDetailText: { flex: 1, color: palette.cocoa, fontFamily: type.bold, fontSize: 12 },
   chartCard: { padding: spacing.lg },
   chartCardCompact: { padding: spacing.md },
   chartHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },

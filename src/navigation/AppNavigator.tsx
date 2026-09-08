@@ -16,6 +16,7 @@ import { OrderDetailScreen } from '../screens/OrderDetailScreen';
 import { InventoryScreen } from '../screens/InventoryScreen';
 import { ShiftScreen } from '../screens/ShiftScreen';
 import { ExpensesScreen } from '../screens/ExpensesScreen';
+import { ExpenseDetailsScreen } from '../screens/ExpenseDetailsScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { ProductManagementScreen } from '../screens/ProductManagementScreen';
 import { ProductEditorScreen } from '../screens/ProductEditorScreen';
@@ -56,6 +57,7 @@ const linking: LinkingOptions<RootStackParamList> = {
       Inventory: 'inventory',
       Shift: 'shift',
       Expenses: 'expenses',
+      ExpenseDetails: 'reports/expenses/:from/:to',
       Settings: 'settings',
       Notifications: 'notifications',
     },
@@ -185,6 +187,7 @@ export function AppNavigator() {
         <Stack.Screen component={InventoryScreen} name="Inventory" />
         <Stack.Screen component={ShiftScreen} name="Shift" />
         <Stack.Screen component={ExpensesScreen} name="Expenses" />
+        <Stack.Screen component={ExpenseDetailsScreen} name="ExpenseDetails" />
         <Stack.Screen component={SettingsScreen} name="Settings" />
         <Stack.Screen component={ProductManagementScreen} name="Products" />
         <Stack.Screen component={ProductEditorScreen} name="ProductEditor" />

@@ -1,7 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { Banknote, CalendarDays, CircleDollarSign, Clock3, Landmark, LogOut, Store } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { BrandLogo, Button, Field, GlassCard, Screen, StatusPill } from '../components/ui';
 import { TERMINAL_ID } from '../api/client';
 import { shiftService } from '../api/services';
@@ -19,12 +19,35 @@ export function OpenShiftScreen() {
   const [bankError, setBankError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [checkingActiveShift, setCheckingActiveShift] = useState(true);
   const [balancesLoading, setBalancesLoading] = useState(Boolean(TERMINAL_ID));
   const [carriedFromShiftId, setCarriedFromShiftId] = useState<string | null>(null);
   const user = useSessionStore((state) => state.user);
   const logout = useSessionStore((state) => state.logout);
   const openShift = useOperationsStore((state) => state.openShift);
+  const refreshShift = useOperationsStore((state) => state.refreshShift);
   const hasOpeningBalances = openingPhysicalCash.trim().length > 0 && openingBankBalance.trim().length > 0;
+
+  useEffect(() => {
+    let active = true;
+    const checkActiveShift = async (initial = false) => {
+      try {
+        await refreshShift();
+      } catch (checkError) {
+        if (active && initial) {
+          setSubmitError(checkError instanceof Error ? checkError.message : 'Shift aktif outlet tidak dapat diperiksa.');
+        }
+      } finally {
+        if (active && initial) setCheckingActiveShift(false);
+      }
+    };
+    void checkActiveShift(true);
+    const timer = setInterval(() => { void checkActiveShift(); }, 5_000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [refreshShift]);
 
   useEffect(() => {
     let active = true;
@@ -77,6 +100,22 @@ export function OpenShiftScreen() {
     }
   };
 
+  if (checkingActiveShift) {
+    return (
+      <Screen bottomInset={spacing.xl}>
+        <View style={styles.topbar}>
+          <BrandLogo width={210} />
+          <Button compact icon={LogOut} label="Keluar" onPress={logout} variant="ghost" />
+        </View>
+        <GlassCard contentStyle={styles.checkingCard}>
+          <ActivityIndicator color={palette.cocoa} size="large" />
+          <Text accessibilityLiveRegion="polite" style={styles.checkingTitle}>Memeriksa shift aktif outlet…</Text>
+          <Text style={styles.checkingText}>Jika petugas lain sudah mengisi kas awal, Anda akan langsung masuk tanpa mengisi ulang.</Text>
+        </GlassCard>
+      </Screen>
+    );
+  }
+
   return (
     <Screen bottomInset={spacing.xl}>
       <View style={styles.topbar}>
@@ -86,8 +125,8 @@ export function OpenShiftScreen() {
 
       <View style={styles.hero}>
         <StatusPill label={carriedFromShiftId ? 'Saldo sebelumnya tersedia' : 'Buka shift'} tone={carriedFromShiftId ? 'success' : 'warning'} />
-        <Text accessibilityRole="header" style={styles.title}>Buka shift hari ini</Text>
-        <Text style={styles.subtitle}>{carriedFromShiftId ? 'Saldo akhir shift sebelumnya ditampilkan sebagai acuan. Isi saldo aktual untuk membuka shift baru.' : 'Sebelum mulai berjualan, catat saldo kas tunai dan non-tunai hari ini.'}</Text>
+        <Text accessibilityRole="header" style={styles.title}>Buka kas harian outlet</Text>
+        <Text style={styles.subtitle}>{carriedFromShiftId ? 'Saldo akhir shift sebelumnya ditampilkan sebagai acuan. Kas awal cukup diisi satu kali untuk seluruh petugas outlet.' : 'Kas awal cukup diisi satu kali. Setelah terbuka, seluruh petugas outlet akan memakai shift yang sama.'}</Text>
       </View>
 
       <GlassCard contentStyle={styles.shiftCard}>
@@ -134,7 +173,7 @@ export function OpenShiftScreen() {
 
         {submitError ? <Text style={styles.formError}>{submitError}</Text> : null}
         <Button disabled={!hasOpeningBalances || balancesLoading} icon={Clock3} label={balancesLoading ? 'Memuat saldo sebelumnya...' : 'Buka shift & mulai jualan'} loading={submitting} onPress={handleOpen} />
-        <Text style={styles.helper}>{carriedFromShiftId ? 'Bandingkan saldo aktual dengan hasil akumulasi, lalu isi kedua field. Masukkan angka 0 jika saldo kosong.' : 'Kedua field wajib diisi untuk shift pertama. Masukkan angka 0 jika saldo kas tunai atau non-tunai kosong.'}</Text>
+        <Text style={styles.helper}>{carriedFromShiftId ? 'Bandingkan saldo aktual dengan hasil akumulasi, lalu isi kedua field. Petugas lain tidak perlu mengisi ulang.' : 'Kedua field hanya wajib diisi oleh petugas pertama yang membuka kas hari ini. Masukkan angka 0 jika saldo kosong.'}</Text>
       </GlassCard>
     </Screen>
   );
@@ -142,6 +181,9 @@ export function OpenShiftScreen() {
 
 const styles = StyleSheet.create({
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  checkingCard: { minHeight: 260, maxWidth: 560, width: '100%', alignSelf: 'center', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, padding: spacing.xl, marginTop: spacing.xxl },
+  checkingTitle: { color: palette.ink, fontFamily: type.bold, fontSize: 16, textAlign: 'center' },
+  checkingText: { maxWidth: 400, color: palette.muted, fontFamily: type.regular, fontSize: 12, lineHeight: 19, textAlign: 'center' },
   hero: { alignItems: 'center', maxWidth: 460, alignSelf: 'center', marginVertical: spacing.xl },
   title: { color: palette.ink, fontFamily: type.display, fontSize: 34, lineHeight: 42, textAlign: 'center', marginTop: spacing.md },
   subtitle: { color: palette.muted, fontFamily: type.regular, fontSize: 14, lineHeight: 21, textAlign: 'center', marginTop: spacing.xs },

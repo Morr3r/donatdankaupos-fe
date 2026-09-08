@@ -8,7 +8,9 @@ import type {
   Transaction,
   ProductOption,
   InventoryItem,
+  Expense,
   ExpenseOverview,
+  ExpenseRangeOverview,
   ExpenseFundingSource,
   NotificationFeed,
   PushTestResult,
@@ -98,11 +100,17 @@ export const shiftService = {
 
 export const expenseService = {
   list: (shiftId: string) => apiRequest<ExpenseOverview>(`/expenses?shiftId=${encodeURIComponent(shiftId)}`),
+  listRange: (from: string, to: string) => apiRequest<ExpenseRangeOverview>(`/expenses/range?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`),
   create: (payload: { idempotencyKey: string; shiftId: string; name: string; amount: number; fundingSource: ExpenseFundingSource }) =>
     apiRequest<ExpenseOverview>('/expenses', {
       method: 'POST',
       body: payload,
       headers: { 'Idempotency-Key': payload.idempotencyKey },
+    }),
+  update: (id: string, payload: { name: string; amount: number; fundingSource: ExpenseFundingSource }) =>
+    apiRequest<Expense>(`/expenses/${id}`, {
+      method: 'PATCH',
+      body: payload,
     }),
   cancel: (id: string, reason: string) => apiRequest<ExpenseOverview>(`/expenses/${id}/cancellations`, {
     method: 'POST',

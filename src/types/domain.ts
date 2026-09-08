@@ -71,6 +71,16 @@ export interface ExpenseOverview {
   totalBalance: number;
 }
 
+export interface ExpenseRangeOverview {
+  fromDate: string;
+  toDate: string;
+  expenses: Expense[];
+  expenseCount: number;
+  totalExpenses: number;
+  bankExpenses: number;
+  cashExpenses: number;
+}
+
 export type ProductCategory = string;
 
 export interface ProductOption {
