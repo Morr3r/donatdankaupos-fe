@@ -26,7 +26,14 @@
           "color": "#E88CA4",
           "defaultChannel": "operations"
         }
-      ]
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Izinkan Donat Dankau POS merekam voice note untuk obrolan."
+        }
+      ],
+      "expo-asset"
     ],
     "ios": {
       "supportsTablet": true,

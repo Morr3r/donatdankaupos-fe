@@ -109,8 +109,8 @@ export function NotificationBridge({ enabled }: { enabled: boolean }) {
 
     const receivedSubscription = Notifications.addNotificationReceivedListener((notification) => {
       const data = notification.request.content.data as Record<string, unknown> | undefined;
-      if (data?.kind === 'chat_message' && typeof data.conversationId === 'string') {
-        applyPushedMessage(data.conversationId);
+      if (data?.kind === 'chat_message') {
+        applyPushedMessage(typeof data.conversationId === 'string' ? data.conversationId : undefined);
         return;
       }
       if (typeof data?.notificationId === 'string') refresh();

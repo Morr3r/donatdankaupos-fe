@@ -1,8 +1,16 @@
 import { useFocusEffect, useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import {
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioRecorder,
+  useAudioRecorderState,
+} from 'expo-audio';
+import { File } from 'expo-file-system';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
-import { ChevronLeft, Info, MessageSquare } from 'lucide-react-native';
+import { ChevronLeft, ImageIcon, Info, MessageSquare, ReceiptText } from 'lucide-react-native';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -29,12 +37,13 @@ import {
   isSameCluster,
   shouldStartNewDay,
 } from '../components/chat';
-import { AppBackground, ScalePressable } from '../components/ui';
+import { ForwardPicker, TransactionPicker } from '../components/chat-modals';
+import { AppBackground, FormModal, ScalePressable } from '../components/ui';
 import type { RootStackParamList } from '../navigation/types';
 import { startChatPolling, useChatStore } from '../store/chatStore';
 import { useSessionStore } from '../store/sessionStore';
 import { palette, radius, spacing, type } from '../theme/tokens';
-import type { ChatMessage } from '../types/domain';
+import type { ChatMessage, ChatTransactionSummary, Transaction } from '../types/domain';
 
 type Navigation = NativeStackNavigationProp<RootStackParamList>;
 type Route = RouteProp<RootStackParamList, 'ChatRoom'>;
@@ -42,6 +51,39 @@ type Route = RouteProp<RootStackParamList, 'ChatRoom'>;
 /** Edits stay open for the same 15 minutes the API allows, so the menu never offers a dead action. */
 const EDIT_WINDOW_MS = 15 * 60_000;
 const MAX_IMAGE_BASE64 = 690_000;
+const MAX_AUDIO_BASE64 = 2_900_000;
+const MAX_RECORDING_MS = 120_000;
+
+async function audioUriToBase64(uri: string): Promise<string> {
+  if (Platform.OS !== 'web') return new File(uri).base64();
+  const response = await fetch(uri);
+  const blob = await response.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Voice note tidak dapat dibaca.'));
+    reader.onload = () => {
+      const value = String(reader.result ?? '');
+      resolve(value.includes(',') ? value.slice(value.indexOf(',') + 1) : value);
+    };
+    reader.readAsDataURL(blob);
+  });
+}
+
+function transactionSummary(transaction: Transaction): ChatTransactionSummary {
+  return {
+    id: transaction.id,
+    receiptNo: transaction.receiptNo,
+    createdAt: transaction.createdAt,
+    cashierName: transaction.cashierName,
+    customerName: transaction.customerName,
+    itemCount: transaction.itemCount,
+    pieceCount: transaction.pieceCount,
+    total: transaction.total,
+    status: transaction.status === 'refunded' ? 'refunded' : 'paid',
+    paymentMethod: transaction.paymentMethod,
+    orderType: transaction.orderType,
+  };
+}
 
 interface Row {
   key: string;
@@ -56,12 +98,18 @@ export function ChatRoomScreen() {
   const { params } = useRoute<Route>();
   const insets = useSafeAreaInsets();
   const listRef = useRef<FlatList<Row>>(null);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorderState = useAudioRecorderState(recorder, 120);
+  const recordingLimitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stopRecordingRef = useRef<() => Promise<void>>(async () => undefined);
+  const recordingBusy = useRef(false);
 
   const conversationId = params.conversationId;
   const currentUser = useSessionStore((state) => state.user);
   const conversation = useChatStore((state) =>
     state.conversations.find((item) => item.id === conversationId),
   );
+  const conversations = useChatStore((state) => state.conversations);
   const messages = useChatStore((state) => state.messagesByConversation[conversationId]);
   const hasMore = useChatStore((state) => state.hasMoreByConversation[conversationId] ?? false);
   const isLoadingMessages = useChatStore((state) => state.isLoadingMessages);
@@ -73,6 +121,7 @@ export function ChatRoomScreen() {
   const retryMessage = useChatStore((state) => state.retryMessage);
   const editMessage = useChatStore((state) => state.editMessage);
   const deleteMessage = useChatStore((state) => state.deleteMessage);
+  const forwardMessage = useChatStore((state) => state.forwardMessage);
   const reactToMessage = useChatStore((state) => state.reactToMessage);
   const markRead = useChatStore((state) => state.markRead);
   const notifyTyping = useChatStore((state) => state.notifyTyping);
@@ -83,9 +132,19 @@ export function ChatRoomScreen() {
   const [actionTarget, setActionTarget] = useState<ChatMessage | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [attachmentMenuVisible, setAttachmentMenuVisible] = useState(false);
+  const [transactionPickerVisible, setTransactionPickerVisible] = useState(false);
+  const [forwardTarget, setForwardTarget] = useState<ChatMessage | null>(null);
+  const [isForwarding, setIsForwarding] = useState(false);
 
   useLayoutEffect(() => {
     navigation.setOptions({ headerShown: false });
+  }, [navigation]);
+
+  const handleBack = useCallback(() => {
+    if (navigation.canGoBack()) navigation.goBack();
+    else navigation.navigate('MainTabs', { screen: 'Chat' });
   }, [navigation]);
 
   // Tighten the poll to room cadence while this screen owns the foreground, and hand it
@@ -210,6 +269,136 @@ export function ChatRoomScreen() {
     }
   }, [conversationId, draft, replyingTo, scrollToEnd, sendMessage]);
 
+  const handleStartRecording = useCallback(async () => {
+    if (recordingBusy.current || isSending) return;
+    try {
+      const permission = await requestRecordingPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Izin mikrofon diperlukan', 'Aktifkan izin mikrofon untuk merekam voice note.');
+        return;
+      }
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      setIsRecording(true);
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
+      recordingLimitTimer.current = setTimeout(() => {
+        void stopRecordingRef.current();
+      }, MAX_RECORDING_MS);
+    } catch (error) {
+      Alert.alert('Tidak dapat merekam', error instanceof Error ? error.message : 'Mikrofon belum dapat digunakan.');
+      await setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
+    }
+  }, [isSending, recorder]);
+
+  const handleCancelRecording = useCallback(async () => {
+    if (recordingBusy.current) return;
+    recordingBusy.current = true;
+    if (recordingLimitTimer.current) clearTimeout(recordingLimitTimer.current);
+    recordingLimitTimer.current = null;
+    try {
+      if (recorder.getStatus().isRecording) await recorder.stop();
+    } finally {
+      setIsRecording(false);
+      recordingBusy.current = false;
+      await setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
+    }
+  }, [recorder]);
+
+  const handleStopRecording = useCallback(async () => {
+    if (recordingBusy.current) return;
+    recordingBusy.current = true;
+    if (recordingLimitTimer.current) clearTimeout(recordingLimitTimer.current);
+    recordingLimitTimer.current = null;
+    const beforeStop = recorder.getStatus();
+    const durationMs = Math.min(
+      MAX_RECORDING_MS,
+      Math.max(beforeStop.durationMillis, recorderState.durationMillis),
+    );
+    setIsSending(true);
+    try {
+      if (beforeStop.isRecording) await recorder.stop();
+      setIsRecording(false);
+      const uri = recorder.uri ?? recorder.getStatus().url;
+      if (!uri || durationMs < 500) {
+        Alert.alert('Voice note terlalu singkat', 'Rekam setidaknya setengah detik lalu coba lagi.');
+        return;
+      }
+      const data = await audioUriToBase64(uri);
+      if (data.length > MAX_AUDIO_BASE64) {
+        Alert.alert('Voice note terlalu besar', 'Voice note maksimal dua menit. Coba rekam lebih singkat.');
+        return;
+      }
+      await sendMessage({
+        conversationId,
+        body: draft.trim(),
+        replyToId: replyingTo?.id ?? null,
+        attachment: {
+          data,
+          mimeType: Platform.OS === 'web' ? 'audio/webm' : 'audio/mp4',
+          durationMs,
+        },
+        localAudioUri: uri,
+      });
+      setDraft('');
+      setReplyingTo(null);
+      pinnedToBottom.current = true;
+      scrollToEnd(true);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
+    } catch (error) {
+      Alert.alert('Gagal mengirim VN', error instanceof Error ? error.message : 'Voice note belum dapat dikirim.');
+    } finally {
+      setIsRecording(false);
+      setIsSending(false);
+      recordingBusy.current = false;
+      await setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
+    }
+  }, [conversationId, draft, recorder, recorderState.durationMillis, replyingTo, scrollToEnd, sendMessage]);
+
+  stopRecordingRef.current = handleStopRecording;
+
+  useEffect(() => () => {
+    if (recordingLimitTimer.current) clearTimeout(recordingLimitTimer.current);
+    if (recorder.getStatus().isRecording) void recorder.stop();
+    void setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
+  }, [recorder]);
+
+  const handleShareTransaction = useCallback(async (transaction: Transaction) => {
+    setTransactionPickerVisible(false);
+    setIsSending(true);
+    try {
+      await sendMessage({
+        conversationId,
+        body: draft.trim(),
+        replyToId: replyingTo?.id ?? null,
+        transactionId: transaction.id,
+        transaction: transactionSummary(transaction),
+      });
+      setDraft('');
+      setReplyingTo(null);
+      pinnedToBottom.current = true;
+      scrollToEnd(true);
+    } catch (error) {
+      Alert.alert('Gagal membagikan transaksi', error instanceof Error ? error.message : 'Transaksi belum dapat dikirim.');
+    } finally {
+      setIsSending(false);
+    }
+  }, [conversationId, draft, replyingTo, scrollToEnd, sendMessage]);
+
+  const handleForward = useCallback(async (targetConversationIds: string[]) => {
+    if (!forwardTarget) return;
+    setIsForwarding(true);
+    try {
+      await forwardMessage(forwardTarget.id, targetConversationIds);
+      setForwardTarget(null);
+      Alert.alert('Pesan diteruskan', `Berhasil diteruskan ke ${targetConversationIds.length} obrolan.`);
+    } catch (error) {
+      Alert.alert('Gagal meneruskan', error instanceof Error ? error.message : 'Pesan belum dapat diteruskan.');
+    } finally {
+      setIsForwarding(false);
+    }
+  }, [forwardMessage, forwardTarget]);
+
   const handleLoadOlder = useCallback(async () => {
     if (!hasMore || isLoadingOlder) return;
     setIsLoadingOlder(true);
@@ -267,7 +456,7 @@ export function ChatRoomScreen() {
   return (
     <AppBackground>
       <View style={[styles.header, { paddingTop: insets.top + spacing.xxs }]}>
-        <ScalePressable accessibilityLabel="Kembali" onPress={() => navigation.goBack()} style={styles.backButton}>
+        <ScalePressable accessibilityLabel="Kembali ke daftar obrolan" onPress={handleBack} style={styles.backButton}>
           <ChevronLeft color={palette.cocoaDark} size={24} strokeWidth={2.2} />
         </ScalePressable>
         <ScalePressable
@@ -372,7 +561,9 @@ export function ChatRoomScreen() {
         <Composer
           bottomInset={insets.bottom}
           editingMessage={editingMessage}
+          isRecording={isRecording}
           isSending={isSending}
+          onCancelRecording={() => void handleCancelRecording()}
           onCancelEdit={() => {
             setEditingMessage(null);
             setDraft('');
@@ -382,8 +573,11 @@ export function ChatRoomScreen() {
             setDraft(value);
             if (value.trim()) notifyTyping(conversationId);
           }}
-          onPickImage={() => void handlePickImage()}
+          onOpenAttachments={() => setAttachmentMenuVisible(true)}
           onSend={() => void handleSend()}
+          onStartRecording={() => void handleStartRecording()}
+          onStopRecording={() => void handleStopRecording()}
+          recordingDurationMs={recorderState.durationMillis}
           replyingTo={replyingTo}
           value={draft}
         />
@@ -406,6 +600,10 @@ export function ChatRoomScreen() {
           }
           setActionTarget(null);
         }}
+        onForward={() => {
+          setForwardTarget(actionTarget);
+          setActionTarget(null);
+        }}
         onReact={(emoji) => {
           if (actionTarget) void reactToMessage(actionTarget.id, emoji).catch(() => undefined);
           setActionTarget(null);
@@ -414,6 +612,64 @@ export function ChatRoomScreen() {
           setReplyingTo(actionTarget);
           setActionTarget(null);
         }}
+      />
+
+      <FormModal
+        onClose={() => setAttachmentMenuVisible(false)}
+        subtitle="Tambahkan media atau bagikan transaksi selesai ke obrolan ini."
+        title="Tambahkan ke pesan"
+        visible={attachmentMenuVisible}
+      >
+        <View style={styles.attachmentChoices}>
+          <ScalePressable
+            accessibilityLabel="Pilih foto dari galeri"
+            onPress={() => {
+              setAttachmentMenuVisible(false);
+              void handlePickImage();
+            }}
+            style={styles.attachmentChoice}
+          >
+            <View style={styles.attachmentChoiceIcon}>
+              <ImageIcon color={palette.cocoa} size={23} />
+            </View>
+            <View style={styles.attachmentChoiceCopy}>
+              <Text style={styles.attachmentChoiceTitle}>Foto</Text>
+              <Text style={styles.attachmentChoiceBody}>Pilih gambar dari galeri perangkat</Text>
+            </View>
+          </ScalePressable>
+          <ScalePressable
+            accessibilityLabel="Pilih transaksi selesai"
+            onPress={() => {
+              setAttachmentMenuVisible(false);
+              setTransactionPickerVisible(true);
+            }}
+            style={styles.attachmentChoice}
+          >
+            <View style={[styles.attachmentChoiceIcon, styles.transactionChoiceIcon]}>
+              <ReceiptText color={palette.cocoa} size={23} />
+            </View>
+            <View style={styles.attachmentChoiceCopy}>
+              <Text style={styles.attachmentChoiceTitle}>Transaksi</Text>
+              <Text style={styles.attachmentChoiceBody}>Bagikan transaksi yang sudah selesai</Text>
+            </View>
+          </ScalePressable>
+        </View>
+      </FormModal>
+
+      <TransactionPicker
+        onClose={() => setTransactionPickerVisible(false)}
+        onSelect={(transaction) => void handleShareTransaction(transaction)}
+        visible={transactionPickerVisible}
+      />
+
+      <ForwardPicker
+        conversations={conversations}
+        loading={isForwarding}
+        message={forwardTarget}
+        onClose={() => {
+          if (!isForwarding) setForwardTarget(null);
+        }}
+        onSubmit={(ids) => void handleForward(ids)}
       />
     </AppBackground>
   );
@@ -432,9 +688,9 @@ const styles = StyleSheet.create({
     borderBottomColor: palette.line,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -456,4 +712,28 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   loadOlderText: { color: palette.cocoa, fontFamily: type.semibold, fontSize: 12 },
+  attachmentChoices: { gap: spacing.xs },
+  attachmentChoice: {
+    minHeight: 64,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    padding: spacing.xs,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: palette.line,
+    backgroundColor: palette.white,
+  },
+  attachmentChoiceIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: palette.roseSoft,
+  },
+  transactionChoiceIcon: { backgroundColor: palette.champagneSoft },
+  attachmentChoiceCopy: { flex: 1, gap: 2 },
+  attachmentChoiceTitle: { color: palette.ink, fontFamily: type.bold, fontSize: 14 },
+  attachmentChoiceBody: { color: palette.muted, fontFamily: type.regular, fontSize: 12 },
 });

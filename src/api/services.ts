@@ -236,6 +236,12 @@ export const chatService = {
     apiRequest<ChatMessage>(`/chat/messages/${messageId}`, { method: 'PATCH', body: { body } }),
   remove: (messageId: string) =>
     apiRequest<ChatMessage>(`/chat/messages/${messageId}`, { method: 'DELETE' }),
+  forward: (messageId: string, targetConversationIds: string[], clientMessageId: string) =>
+    apiRequest<{ items: ChatMessage[] }>(`/chat/messages/${messageId}/forward`, {
+      method: 'POST',
+      body: { targetConversationIds, clientMessageId },
+      timeoutMs: 45_000,
+    }),
   react: (messageId: string, emoji: string) =>
     apiRequest<ChatMessage>(`/chat/messages/${messageId}/reactions`, { method: 'POST', body: { emoji } }),
   attachment: (attachmentId: string) =>

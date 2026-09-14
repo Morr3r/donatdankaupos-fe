@@ -1,12 +1,19 @@
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import {
   BellOff,
   Check,
   CheckCheck,
   Clock,
+  Forward,
   ImageIcon,
+  Mic,
+  Paperclip,
+  Pause,
   Pin,
+  Play,
+  ReceiptText,
   Reply,
   RotateCw,
   Send,
@@ -28,6 +35,7 @@ import {
 } from 'react-native';
 import { palette, radius, shadow, spacing, type } from '../theme/tokens';
 import type { ChatConversation, ChatMessage } from '../types/domain';
+import { formatCurrency } from '../utils/format';
 import { useChatStore } from '../store/chatStore';
 import { useReducedMotion } from '../utils/useReducedMotion';
 import { ScalePressable } from './ui';
@@ -157,7 +165,9 @@ function DeliveryTicks({ message }: { message: ChatMessage }) {
   if (message.outboxStatus === 'sending') return <Clock color="rgba(255,255,255,0.7)" size={13} strokeWidth={2.4} />;
   if (message.outboxStatus === 'failed') return <RotateCw color={palette.roseSoft} size={13} strokeWidth={2.4} />;
   if (message.isReadByAll) return <CheckCheck color="#7FD1FF" size={15} strokeWidth={2.6} />;
-  if (message.readByCount > 0) return <CheckCheck color="rgba(255,255,255,0.72)" size={15} strokeWidth={2.4} />;
+  if (message.isDeliveredToAll || message.deliveredToCount > 0) {
+    return <CheckCheck color="rgba(255,255,255,0.72)" size={15} strokeWidth={2.4} />;
+  }
   return <Check color="rgba(255,255,255,0.72)" size={15} strokeWidth={2.4} />;
 }
 
@@ -210,6 +220,110 @@ function AttachmentImage({ message, tone }: { message: ChatMessage; tone: 'mine'
           <ActivityIndicator color={palette.white} />
         </View>
       ) : null}
+    </View>
+  );
+}
+
+const formatAudioTime = (seconds: number): string => {
+  const safe = Math.max(0, Math.round(seconds));
+  return `${Math.floor(safe / 60)}:${String(safe % 60).padStart(2, '0')}`;
+};
+
+function VoiceNotePlayer({ message, tone }: { message: ChatMessage; tone: 'mine' | 'theirs' }) {
+  const loadAttachment = useChatStore((state) => state.loadAttachment);
+  const cached = useChatStore((state) =>
+    message.attachment ? state.attachmentCache[message.attachment.id] : undefined,
+  );
+  const attachmentId = message.attachment?.id;
+  const source = message.localAudioUri ?? cached ?? null;
+  const player = useAudioPlayer(source ? { uri: source } : null, { updateInterval: 120 });
+  const status = useAudioPlayerStatus(player);
+
+  useEffect(() => {
+    if (!attachmentId || cached || message.localAudioUri) return;
+    void loadAttachment(attachmentId);
+  }, [attachmentId, cached, loadAttachment, message.localAudioUri]);
+
+  const duration = status.duration || (message.attachment?.durationMs ?? 0) / 1000;
+  const progress = duration > 0 ? Math.min(1, status.currentTime / duration) : 0;
+  const toggle = async () => {
+    if (!source) return;
+    if (status.playing) {
+      player.pause();
+      return;
+    }
+    if (status.didJustFinish || (duration > 0 && status.currentTime >= duration - 0.15)) {
+      await player.seekTo(0);
+    }
+    player.play();
+  };
+
+  return (
+    <View style={styles.audioPlayer}>
+      <ScalePressable
+        accessibilityLabel={status.playing ? 'Jeda voice note' : 'Putar voice note'}
+        disabled={!source}
+        onPress={() => void toggle()}
+        style={[styles.audioButton, tone === 'mine' && styles.audioButtonMine]}
+      >
+        {!source ? (
+          <ActivityIndicator color={tone === 'mine' ? palette.cocoa : palette.white} size="small" />
+        ) : status.playing ? (
+          <Pause color={tone === 'mine' ? palette.cocoa : palette.white} fill={tone === 'mine' ? palette.cocoa : palette.white} size={18} />
+        ) : (
+          <Play color={tone === 'mine' ? palette.cocoa : palette.white} fill={tone === 'mine' ? palette.cocoa : palette.white} size={18} />
+        )}
+      </ScalePressable>
+      <View style={styles.audioCopy}>
+        <View style={[styles.audioTrack, tone === 'mine' && styles.audioTrackMine]}>
+          <View
+            style={[
+              styles.audioProgress,
+              tone === 'mine' && styles.audioProgressMine,
+              { width: `${progress * 100}%` },
+            ]}
+          />
+        </View>
+        <View style={styles.audioLabels}>
+          <Text style={[styles.audioTime, tone === 'mine' && styles.audioTimeMine]}>
+            {formatAudioTime(status.playing ? status.currentTime : duration)}
+          </Text>
+          <Mic color={tone === 'mine' ? 'rgba(255,255,255,0.68)' : palette.muted} size={13} />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function TransactionCard({ message, isMine }: { message: ChatMessage; isMine: boolean }) {
+  const transaction = message.transaction;
+  if (!transaction) return null;
+  return (
+    <View style={[styles.transactionCard, isMine && styles.transactionCardMine]}>
+      <View style={[styles.transactionIcon, isMine && styles.transactionIconMine]}>
+        <ReceiptText color={isMine ? palette.cocoa : palette.white} size={19} />
+      </View>
+      <View style={styles.transactionCopy}>
+        <Text numberOfLines={1} style={[styles.transactionReceipt, isMine && styles.transactionTextMine]}>
+          {transaction.receiptNo}
+        </Text>
+        <Text style={[styles.transactionMeta, isMine && styles.transactionMetaMine]}>
+          {transaction.itemCount} item · {transaction.pieceCount} pcs
+        </Text>
+        {transaction.customerName ? (
+          <Text numberOfLines={1} style={[styles.transactionMeta, isMine && styles.transactionMetaMine]}>
+            {transaction.customerName}
+          </Text>
+        ) : null}
+      </View>
+      <View style={styles.transactionAmountCopy}>
+        <Text style={[styles.transactionAmount, isMine && styles.transactionTextMine]}>
+          {formatCurrency(transaction.total)}
+        </Text>
+        <Text style={[styles.transactionStatus, transaction.status === 'refunded' && styles.transactionRefunded]}>
+          {transaction.status === 'refunded' ? 'Refund' : 'Selesai'}
+        </Text>
+      </View>
     </View>
   );
 }
@@ -290,7 +404,7 @@ export const MessageBubble = memo(function MessageBubble({
         </View>
         <Pressable
           accessibilityHint="Tekan lama untuk membalas, bereaksi, atau menghapus"
-          accessibilityLabel={`${message.senderName}: ${isDeleted ? 'Pesan dihapus' : message.body || 'Foto'}`}
+          accessibilityLabel={`${message.senderName}: ${isDeleted ? 'Pesan dihapus' : previewText(message)}`}
           accessibilityRole="button"
           delayLongPress={260}
           onLongPress={() => {
@@ -310,6 +424,10 @@ export const MessageBubble = memo(function MessageBubble({
         >
           {showSender && !isMine ? <Text style={styles.bubbleSender}>{message.senderName}</Text> : null}
 
+          {message.systemData.forwarded === true && !isDeleted ? (
+            <Text style={[styles.forwardedLabel, isMine && styles.forwardedLabelMine]}>Diteruskan</Text>
+          ) : null}
+
           {message.replyTo ? (
             <View style={[styles.replyQuote, isMine ? styles.replyQuoteMine : styles.replyQuoteTheirs]}>
               <Text numberOfLines={1} style={[styles.replyQuoteName, isMine && styles.replyQuoteNameMine]}>
@@ -323,6 +441,14 @@ export const MessageBubble = memo(function MessageBubble({
 
           {message.kind === 'image' && !isDeleted ? (
             <AttachmentImage message={message} tone={isMine ? 'mine' : 'theirs'} />
+          ) : null}
+
+          {message.kind === 'audio' && !isDeleted ? (
+            <VoiceNotePlayer message={message} tone={isMine ? 'mine' : 'theirs'} />
+          ) : null}
+
+          {message.kind === 'transaction' && !isDeleted ? (
+            <TransactionCard isMine={isMine} message={message} />
           ) : null}
 
           {isDeleted ? (
@@ -411,7 +537,12 @@ interface ComposerProps {
   value: string;
   onChangeText: (value: string) => void;
   onSend: () => void;
-  onPickImage: () => void;
+  onOpenAttachments: () => void;
+  onStartRecording: () => void;
+  onStopRecording: () => void;
+  onCancelRecording: () => void;
+  isRecording: boolean;
+  recordingDurationMs: number;
   replyingTo?: ChatMessage | null;
   onCancelReply: () => void;
   editingMessage?: ChatMessage | null;
@@ -424,7 +555,12 @@ export function Composer({
   value,
   onChangeText,
   onSend,
-  onPickImage,
+  onOpenAttachments,
+  onStartRecording,
+  onStopRecording,
+  onCancelRecording,
+  isRecording,
+  recordingDurationMs,
   replyingTo,
   onCancelReply,
   editingMessage,
@@ -441,7 +577,7 @@ export function Composer({
           <View style={styles.composerBannerCopy}>
             <Text style={styles.composerBannerTitle}>Membalas {replyingTo.senderName}</Text>
             <Text numberOfLines={1} style={styles.composerBannerBody}>
-              {replyingTo.kind === 'image' ? '📷 Foto' : replyingTo.body}
+              {previewText(replyingTo)}
             </Text>
           </View>
           <ScalePressable accessibilityLabel="Batalkan balasan" onPress={onCancelReply} style={styles.composerBannerClose}>
@@ -464,32 +600,53 @@ export function Composer({
       ) : null}
 
       <View style={styles.composerRow}>
-        {!editingMessage ? (
-          <ScalePressable accessibilityLabel="Kirim foto" onPress={onPickImage} style={styles.composerAttach}>
-            <ImageIcon color={palette.cocoa} size={21} strokeWidth={2} />
-          </ScalePressable>
-        ) : null}
-        <TextInput
-          accessibilityLabel="Tulis pesan"
-          multiline
-          onChangeText={onChangeText}
-          placeholder="Tulis pesan…"
-          placeholderTextColor={palette.muted}
-          style={styles.composerInput}
-          value={value}
-        />
+        {isRecording ? (
+          <>
+            <ScalePressable accessibilityLabel="Batalkan voice note" onPress={onCancelRecording} style={styles.composerAttach}>
+              <X color={palette.danger} size={21} strokeWidth={2.2} />
+            </ScalePressable>
+            <View accessibilityLabel={`Merekam voice note ${formatAudioTime(recordingDurationMs / 1000)}`} style={styles.recordingPanel}>
+              <View style={styles.recordingDot} />
+              <Text style={styles.recordingTime}>{formatAudioTime(recordingDurationMs / 1000)}</Text>
+              <Text style={styles.recordingHint}>Merekam voice note</Text>
+            </View>
+          </>
+        ) : (
+          <>
+            {!editingMessage ? (
+              <ScalePressable accessibilityLabel="Tambahkan lampiran" onPress={onOpenAttachments} style={styles.composerAttach}>
+                <Paperclip color={palette.cocoa} size={21} strokeWidth={2} />
+              </ScalePressable>
+            ) : null}
+            <TextInput
+              accessibilityLabel="Tulis pesan"
+              multiline
+              onChangeText={onChangeText}
+              placeholder="Tulis pesan…"
+              placeholderTextColor={palette.muted}
+              style={styles.composerInput}
+              value={value}
+            />
+          </>
+        )}
         <ScalePressable
-          accessibilityLabel={editingMessage ? 'Simpan perubahan' : 'Kirim pesan'}
-          disabled={!canSend}
-          onPress={onSend}
-          style={[styles.composerSend, !canSend && styles.composerSendDisabled]}
+          accessibilityLabel={
+            isRecording ? 'Kirim voice note' : editingMessage ? 'Simpan perubahan' : canSend ? 'Kirim pesan' : 'Rekam voice note'
+          }
+          disabled={isSending || (Boolean(editingMessage) && !canSend)}
+          onPress={isRecording ? onStopRecording : canSend ? onSend : onStartRecording}
+          style={[styles.composerSend, isSending && styles.composerSendDisabled]}
         >
           {isSending ? (
             <ActivityIndicator color={palette.white} size="small" />
+          ) : isRecording ? (
+            <Send color={palette.white} size={19} strokeWidth={2.3} />
           ) : editingMessage ? (
             <Check color={palette.white} size={20} strokeWidth={2.6} />
-          ) : (
+          ) : canSend ? (
             <Send color={palette.white} size={19} strokeWidth={2.3} />
+          ) : (
+            <Mic color={palette.white} size={20} strokeWidth={2.3} />
           )}
         </ScalePressable>
       </View>
@@ -573,6 +730,10 @@ export const ConversationRow = memo(function ConversationRow({
 export function previewText(message: ChatMessage): string {
   if (message.deletedAt) return 'Pesan ini telah dihapus';
   if (message.kind === 'image') return message.body ? `📷 ${message.body}` : '📷 Foto';
+  if (message.kind === 'audio') return 'Voice note';
+  if (message.kind === 'transaction') {
+    return message.transaction ? `Transaksi ${message.transaction.receiptNo}` : 'Transaksi dibagikan';
+  }
   return message.body;
 }
 
@@ -584,6 +745,7 @@ interface ActionSheetProps {
   onReply: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onForward: () => void;
   onClose: () => void;
 }
 
@@ -595,6 +757,7 @@ export function MessageActionSheet({
   onReply,
   onEdit,
   onDelete,
+  onForward,
   onClose,
 }: ActionSheetProps) {
   const appear = useRef(new Animated.Value(0)).current;
@@ -621,6 +784,7 @@ export function MessageActionSheet({
 
   const actions = [
     { label: 'Balas', icon: Reply, onPress: onReply, tone: 'default' as const },
+    { label: 'Teruskan', icon: Forward, onPress: onForward, tone: 'default' as const },
     ...(canEdit ? [{ label: 'Edit pesan', icon: Send, onPress: onEdit, tone: 'default' as const }] : []),
     ...(canDelete ? [{ label: 'Hapus untuk semua', icon: X, onPress: onDelete, tone: 'danger' as const }] : []),
   ];
@@ -750,6 +914,8 @@ const styles = StyleSheet.create({
   bubbleText: { color: palette.ink, fontFamily: type.regular, fontSize: 14.5, lineHeight: 20 },
   bubbleTextMine: { color: palette.white },
   bubbleTextDeleted: { fontStyle: 'italic', opacity: 0.82 },
+  forwardedLabel: { color: palette.muted, fontFamily: type.medium, fontSize: 10.5, marginBottom: 4 },
+  forwardedLabelMine: { color: 'rgba(255,255,255,0.68)' },
   bubbleMeta: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-end', gap: 4, marginTop: 2 },
   bubbleStamp: { color: palette.muted, fontFamily: type.medium, fontSize: 10 },
   bubbleStampMine: { color: 'rgba(255,255,255,0.72)' },
@@ -780,6 +946,44 @@ const styles = StyleSheet.create({
   attachmentImage: { width: '100%', height: '100%' },
   attachmentPlaceholder: { alignItems: 'center', justifyContent: 'center' },
   attachmentSpinner: { position: 'absolute' as const, top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
+
+  audioPlayer: { width: 232, maxWidth: '100%', flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: 4 },
+  audioButton: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.cocoa },
+  audioButtonMine: { backgroundColor: palette.champagneSoft },
+  audioCopy: { flex: 1, gap: 6 },
+  audioTrack: { height: 4, borderRadius: 2, overflow: 'hidden', backgroundColor: 'rgba(107,63,42,0.14)' },
+  audioTrackMine: { backgroundColor: 'rgba(255,255,255,0.24)' },
+  audioProgress: { height: '100%', borderRadius: 2, backgroundColor: palette.cocoa },
+  audioProgressMine: { backgroundColor: palette.champagne },
+  audioLabels: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  audioTime: { color: palette.muted, fontFamily: type.medium, fontSize: 10.5 },
+  audioTimeMine: { color: 'rgba(255,255,255,0.72)' },
+
+  transactionCard: {
+    width: 282,
+    maxWidth: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    borderRadius: radius.sm,
+    backgroundColor: 'rgba(107,63,42,0.06)',
+    borderWidth: 1,
+    borderColor: palette.line,
+    padding: spacing.xs,
+    marginBottom: 4,
+  },
+  transactionCardMine: { backgroundColor: 'rgba(255,255,255,0.13)', borderColor: 'rgba(255,255,255,0.18)' },
+  transactionIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.cocoa },
+  transactionIconMine: { backgroundColor: palette.champagneSoft },
+  transactionCopy: { flex: 1, gap: 1 },
+  transactionReceipt: { color: palette.ink, fontFamily: type.bold, fontSize: 12.5 },
+  transactionTextMine: { color: palette.white },
+  transactionMeta: { color: palette.muted, fontFamily: type.regular, fontSize: 10.5 },
+  transactionMetaMine: { color: 'rgba(255,255,255,0.72)' },
+  transactionAmountCopy: { alignItems: 'flex-end', gap: 2 },
+  transactionAmount: { color: palette.cocoa, fontFamily: type.bold, fontSize: 11.5 },
+  transactionStatus: { color: palette.success, fontFamily: type.semibold, fontSize: 9.5 },
+  transactionRefunded: { color: palette.roseSoft },
 
   reactionTray: { flexDirection: 'row', gap: 4, marginTop: -7, marginBottom: 5, zIndex: 2 },
   reactionTrayMine: { marginRight: 6 },
@@ -851,6 +1055,21 @@ const styles = StyleSheet.create({
     fontFamily: type.regular,
     fontSize: 14.5,
   },
+  recordingPanel: {
+    flex: 1,
+    minHeight: 42,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: palette.rose,
+    backgroundColor: palette.roseSoft,
+    paddingHorizontal: spacing.sm,
+  },
+  recordingDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: palette.danger },
+  recordingTime: { color: palette.danger, fontFamily: type.bold, fontSize: 13 },
+  recordingHint: { flex: 1, color: palette.inkSoft, fontFamily: type.medium, fontSize: 12 },
   composerSend: {
     width: 42,
     height: 42,

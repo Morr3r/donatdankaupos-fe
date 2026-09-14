@@ -253,7 +253,7 @@ export interface PushTestResult {
 
 
 export type ChatConversationKind = 'direct' | 'group';
-export type ChatMessageKind = 'text' | 'image' | 'system';
+export type ChatMessageKind = 'text' | 'image' | 'audio' | 'transaction' | 'system';
 export type ChatMemberRole = 'member' | 'admin';
 /** Lifecycle of a message the device is still trying to hand to the server. */
 export type ChatOutboxStatus = 'sending' | 'failed';
@@ -280,6 +280,7 @@ export interface ChatMember {
   initials: string;
   accent: string;
   lastReadSeq: number;
+  lastDeliveredSeq: number;
   isOnline: boolean;
   isTyping: boolean;
   lastSeenAt?: string | null;
@@ -292,6 +293,7 @@ export interface ChatAttachmentMeta {
   byteSize: number;
   width?: number | null;
   height?: number | null;
+  durationMs?: number | null;
   thumbnail?: string | null;
 }
 
@@ -316,6 +318,20 @@ export interface ChatReplyPreview {
   isDeleted: boolean;
 }
 
+export interface ChatTransactionSummary {
+  id: string;
+  receiptNo: string;
+  createdAt: string;
+  cashierName: string;
+  customerName?: string | null;
+  itemCount: number;
+  pieceCount: number;
+  total: number;
+  status: 'paid' | 'refunded';
+  paymentMethod: PaymentMethod | null;
+  orderType: OrderType;
+}
+
 export interface ChatMessage {
   id: string;
   conversationId: string;
@@ -327,6 +343,7 @@ export interface ChatMessage {
   clientMessageId?: string | null;
   replyTo?: ChatReplyPreview | null;
   attachment?: ChatAttachmentMeta | null;
+  transaction?: ChatTransactionSummary | null;
   reactions: ChatReaction[];
   systemData: Record<string, unknown>;
   editedAt?: string | null;
@@ -334,10 +351,14 @@ export interface ChatMessage {
   createdAt: string;
   readByCount: number;
   isReadByAll: boolean;
+  deliveredToCount: number;
+  isDeliveredToAll: boolean;
   /** Present only while the message lives in the local outbox. */
   outboxStatus?: ChatOutboxStatus;
   /** Local preview URI so an image renders before the upload finishes. */
   localImageUri?: string;
+  /** Local URI so a freshly recorded VN can be played while it uploads. */
+  localAudioUri?: string;
 }
 
 export interface ChatConversation {
@@ -401,6 +422,7 @@ export interface ChatAttachmentUpload {
   mimeType: string;
   width?: number | null;
   height?: number | null;
+  durationMs?: number | null;
   thumbnail?: string | null;
 }
 
@@ -409,4 +431,5 @@ export interface ChatSendPayload {
   clientMessageId: string;
   replyToId?: string | null;
   attachment?: ChatAttachmentUpload | null;
+  transactionId?: string | null;
 }

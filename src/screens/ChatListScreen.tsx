@@ -107,7 +107,7 @@ export function ChatListScreen() {
           ) : null}
         </View>
 
-        {archivedCount > 0 && !searching ? (
+        {(showArchived || archivedCount > 0) && !searching ? (
           <ScalePressable
             accessibilityLabel={showArchived ? 'Kembali ke obrolan aktif' : `Lihat ${archivedCount} obrolan diarsipkan`}
             onPress={() => setShowArchived((current) => !current)}

@@ -8,6 +8,7 @@ import type {
   ChatConversation,
   ChatMessage,
   ChatSearchHit,
+  ChatTransactionSummary,
 } from '../types/domain';
 
 /**
@@ -35,6 +36,9 @@ interface PendingSend {
   replyToId?: string | null;
   attachment?: ChatAttachmentUpload | null;
   localImageUri?: string;
+  localAudioUri?: string;
+  transactionId?: string | null;
+  transaction?: ChatTransactionSummary | null;
   attempts: number;
 }
 
@@ -68,11 +72,15 @@ interface ChatState {
     replyToId?: string | null;
     attachment?: ChatAttachmentUpload | null;
     localImageUri?: string;
+    localAudioUri?: string;
+    transactionId?: string | null;
+    transaction?: ChatTransactionSummary | null;
   }) => Promise<void>;
   flushOutbox: () => Promise<void>;
   retryMessage: (clientMessageId: string) => Promise<void>;
   editMessage: (messageId: string, body: string) => Promise<void>;
   deleteMessage: (messageId: string) => Promise<void>;
+  forwardMessage: (messageId: string, targetConversationIds: string[]) => Promise<void>;
   reactToMessage: (messageId: string, emoji: string) => Promise<void>;
   markRead: (conversationId: string, seq?: number) => Promise<void>;
   notifyTyping: (conversationId: string) => void;
@@ -90,7 +98,7 @@ interface ChatState {
   loadAttachment: (attachmentId: string) => Promise<string | null>;
   search: (query: string) => Promise<void>;
   clearSearch: () => void;
-  applyPushedMessage: (conversationId: string) => void;
+  applyPushedMessage: (conversationId?: string) => void;
   reset: () => void;
 }
 
@@ -112,7 +120,16 @@ function mergeMessages(existing: ChatMessage[], incoming: ChatMessage[]): ChatMe
   for (const message of incoming) {
     const previous = byId.get(message.id);
     // Keep the local preview URI so an image does not flicker while its blob downloads.
-    byId.set(message.id, previous?.localImageUri ? { ...message, localImageUri: previous.localImageUri } : message);
+    byId.set(
+      message.id,
+      !message.deletedAt && (previous?.localImageUri || previous?.localAudioUri)
+        ? {
+            ...message,
+            localImageUri: previous.localImageUri,
+            localAudioUri: previous.localAudioUri,
+          }
+        : message,
+    );
   }
   return [...byId.values()].sort((a, b) => a.seq - b.seq);
 }
@@ -145,11 +162,18 @@ function optimisticMessage(pending: PendingSend, senderName: string, senderId: s
     seq: Number.MAX_SAFE_INTEGER - MAX_OUTBOX_ATTEMPTS + pending.attempts,
     senderId,
     senderName,
-    kind: pending.attachment ? 'image' : 'text',
+    kind: pending.transactionId
+      ? 'transaction'
+      : pending.attachment?.mimeType.startsWith('audio/')
+        ? 'audio'
+        : pending.attachment
+          ? 'image'
+          : 'text',
     body: pending.body,
     clientMessageId: pending.clientMessageId,
     replyTo: null,
     attachment: null,
+    transaction: pending.transaction ?? null,
     reactions: [],
     systemData: {},
     editedAt: null,
@@ -157,8 +181,11 @@ function optimisticMessage(pending: PendingSend, senderName: string, senderId: s
     createdAt: new Date().toISOString(),
     readByCount: 0,
     isReadByAll: false,
+    deliveredToCount: 0,
+    isDeliveredToAll: false,
     outboxStatus: 'sending',
     localImageUri: pending.localImageUri,
+    localAudioUri: pending.localAudioUri,
   };
 }
 
@@ -236,9 +263,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
   loadConversations: async () => {
     set({ isLoadingConversations: true, error: null });
     try {
-      const feed = await chatService.conversations();
+      const [feed, archivedFeed] = await Promise.all([
+        chatService.conversations(),
+        chatService.conversations(true),
+      ]);
       set({
-        conversations: sortConversations(feed.items),
+        conversations: sortConversations([...feed.items, ...archivedFeed.items]),
         totalUnread: feed.totalUnread,
         cursor: feed.cursor,
         isLoadingConversations: false,
@@ -364,7 +394,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
     return inFlightSync;
   },
 
-  sendMessage: async ({ conversationId, body, replyToId, attachment, localImageUri }) => {
+  sendMessage: async ({
+    conversationId,
+    body,
+    replyToId,
+    attachment,
+    localImageUri,
+    localAudioUri,
+    transactionId,
+    transaction,
+  }) => {
     const pending: PendingSend = {
       clientMessageId: newClientMessageId(),
       conversationId,
@@ -372,6 +411,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
       replyToId: replyToId ?? null,
       attachment: attachment ?? null,
       localImageUri,
+      localAudioUri,
+      transactionId: transactionId ?? null,
+      transaction: transaction ?? null,
       attempts: 0,
     };
     const placeholder = optimisticMessage(pending, viewer.name, viewer.id);
@@ -395,6 +437,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           clientMessageId: pending.clientMessageId,
           replyToId: pending.replyToId,
           attachment: pending.attachment,
+          transactionId: pending.transactionId,
         });
         set((state) => ({
           outbox: state.outbox.filter((item) => item.clientMessageId !== pending.clientMessageId),
@@ -402,7 +445,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
             ...state.messagesByConversation,
             [pending.conversationId]: mergeMessages(
               state.messagesByConversation[pending.conversationId] ?? [],
-              [pending.localImageUri ? { ...saved, localImageUri: pending.localImageUri } : saved],
+              [
+                pending.localImageUri || pending.localAudioUri
+                  ? {
+                      ...saved,
+                      localImageUri: pending.localImageUri,
+                      localAudioUri: pending.localAudioUri,
+                    }
+                  : saved,
+              ],
             ),
           },
         }));
@@ -459,13 +510,72 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   deleteMessage: async (messageId) => {
-    const saved = await chatService.remove(messageId);
+    let previous: ChatMessage | undefined;
+    set((state) => {
+      const next = { ...state.messagesByConversation };
+      for (const [conversationId, messages] of Object.entries(next)) {
+        const match = messages.find((item) => item.id === messageId);
+        if (!match) continue;
+        previous = match;
+        next[conversationId] = messages.map((item) =>
+          item.id === messageId
+            ? {
+                ...item,
+                body: '',
+                replyTo: null,
+                attachment: null,
+                transaction: null,
+                reactions: [],
+                systemData: {},
+                deletedAt: new Date().toISOString(),
+              }
+            : item,
+        );
+        break;
+      }
+      return { messagesByConversation: next };
+    });
+    let saved: ChatMessage;
+    try {
+      saved = await chatService.remove(messageId);
+    } catch (error) {
+      if (previous) {
+        const restore = previous;
+        set((state) => ({
+          messagesByConversation: {
+            ...state.messagesByConversation,
+            [restore.conversationId]: mergeMessages(
+              state.messagesByConversation[restore.conversationId] ?? [],
+              [restore],
+            ),
+          },
+        }));
+      }
+      throw error;
+    }
     set((state) => ({
       messagesByConversation: {
         ...state.messagesByConversation,
         [saved.conversationId]: mergeMessages(state.messagesByConversation[saved.conversationId] ?? [], [saved]),
       },
     }));
+    schedulePersist();
+  },
+
+  forwardMessage: async (messageId, targetConversationIds) => {
+    const response = await chatService.forward(messageId, targetConversationIds, newClientMessageId());
+    const grouped: Record<string, ChatMessage[]> = {};
+    for (const message of response.items) {
+      (grouped[message.conversationId] ??= []).push(message);
+    }
+    set((state) => {
+      const next = { ...state.messagesByConversation };
+      for (const [conversationId, messages] of Object.entries(grouped)) {
+        next[conversationId] = mergeMessages(next[conversationId] ?? [], messages);
+      }
+      return { messagesByConversation: next };
+    });
+    await get().loadConversations();
     schedulePersist();
   },
 
@@ -609,7 +719,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   applyPushedMessage: (conversationId) => {
     // A push landed while the app was foregrounded: pull the delta now instead of waiting.
     void get().sync();
-    if (get().activeConversationId === conversationId) void get().markRead(conversationId);
+    if (conversationId && get().activeConversationId === conversationId) void get().markRead(conversationId);
   },
 
   reset: () => {
