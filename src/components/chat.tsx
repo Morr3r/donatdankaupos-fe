@@ -8,6 +8,7 @@ import {
   Clock,
   Forward,
   ImageIcon,
+  Info,
   Mic,
   Paperclip,
   Pause,
@@ -35,6 +36,7 @@ import {
 } from 'react-native';
 import { palette, radius, shadow, spacing, type } from '../theme/tokens';
 import type { ChatConversation, ChatMessage } from '../types/domain';
+import { profileImageSource } from '../api/client';
 import { formatCurrency } from '../utils/format';
 import { useChatStore } from '../store/chatStore';
 import { useReducedMotion } from '../utils/useReducedMotion';
@@ -107,9 +109,27 @@ interface AvatarProps {
   size?: number;
   isOnline?: boolean;
   isGroup?: boolean;
+  userId?: string | null;
+  avatarUpdatedAt?: string | null;
+  imageUri?: string | null;
 }
 
-export function ChatAvatar({ initials, accent, size = 52, isOnline, isGroup }: AvatarProps) {
+export function ChatAvatar({
+  initials,
+  accent,
+  size = 52,
+  isOnline,
+  isGroup,
+  userId,
+  avatarUpdatedAt,
+  imageUri,
+}: AvatarProps) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const remoteSource = profileImageSource(userId, avatarUpdatedAt);
+  const imageSource = imageUri ? { uri: imageUri } : remoteSource;
+
+  useEffect(() => setImageFailed(false), [avatarUpdatedAt, imageUri, userId]);
+
   return (
     <View style={{ width: size, height: size }}>
       <LinearGradient
@@ -123,6 +143,15 @@ export function ChatAvatar({ initials, accent, size = 52, isOnline, isGroup }: A
         ) : (
           <Text style={[styles.avatarText, { fontSize: size * 0.36 }]}>{initials}</Text>
         )}
+        {!isGroup && imageSource && !imageFailed ? (
+          <Image
+            accessibilityIgnoresInvertColors
+            onError={() => setImageFailed(true)}
+            resizeMode="cover"
+            source={imageSource}
+            style={[styles.avatarImage, { borderRadius: size / 2 }]}
+          />
+        ) : null}
       </LinearGradient>
       {isOnline ? <View style={[styles.presenceDot, { right: size * 0.02, bottom: size * 0.02 }]} /> : null}
     </View>
@@ -403,7 +432,7 @@ export const MessageBubble = memo(function MessageBubble({
           <Reply color={palette.muted} size={15} strokeWidth={2.2} />
         </View>
         <Pressable
-          accessibilityHint="Tekan lama untuk membalas, bereaksi, atau menghapus"
+          accessibilityHint="Tekan lama untuk membuka aksi dan info pesan"
           accessibilityLabel={`${message.senderName}: ${isDeleted ? 'Pesan dihapus' : previewText(message)}`}
           accessibilityRole="button"
           delayLongPress={260}
@@ -688,9 +717,11 @@ export const ConversationRow = memo(function ConversationRow({
     >
       <ChatAvatar
         accent={conversation.accent}
+        avatarUpdatedAt={conversation.avatarUpdatedAt}
         initials={conversation.initials}
         isGroup={conversation.kind === 'group'}
         isOnline={conversation.isOnline}
+        userId={conversation.avatarUserId}
       />
       <View style={styles.conversationCopy}>
         <View style={styles.conversationTopLine}>
@@ -741,11 +772,14 @@ interface ActionSheetProps {
   message: ChatMessage | null;
   canEdit: boolean;
   canDelete: boolean;
+  canShowReadInfo: boolean;
+  readByCount: number;
   onReact: (emoji: string) => void;
   onReply: () => void;
   onEdit: () => void;
   onDelete: () => void;
   onForward: () => void;
+  onShowReadInfo: () => void;
   onClose: () => void;
 }
 
@@ -753,11 +787,14 @@ export function MessageActionSheet({
   message,
   canEdit,
   canDelete,
+  canShowReadInfo,
+  readByCount,
   onReact,
   onReply,
   onEdit,
   onDelete,
   onForward,
+  onShowReadInfo,
   onClose,
 }: ActionSheetProps) {
   const appear = useRef(new Animated.Value(0)).current;
@@ -783,6 +820,7 @@ export function MessageActionSheet({
   if (!message) return null;
 
   const actions = [
+    ...(canShowReadInfo ? [{ label: `Info dibaca (${readByCount})`, icon: Info, onPress: onShowReadInfo, tone: 'default' as const }] : []),
     { label: 'Balas', icon: Reply, onPress: onReply, tone: 'default' as const },
     { label: 'Teruskan', icon: Forward, onPress: onForward, tone: 'default' as const },
     ...(canEdit ? [{ label: 'Edit pesan', icon: Send, onPress: onEdit, tone: 'default' as const }] : []),
@@ -854,6 +892,7 @@ export const useAutoScroll = (dependency: unknown) => {
 
 const styles = StyleSheet.create({
   avatar: { alignItems: 'center', justifyContent: 'center' },
+  avatarImage: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   avatarText: { color: palette.white, fontFamily: type.bold, letterSpacing: 0.4 },
   presenceDot: {
     position: 'absolute',

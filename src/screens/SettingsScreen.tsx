@@ -1,16 +1,20 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Bluetooth, Printer, RefreshCw, Server, ShieldCheck, TabletSmartphone, Trash2, Wifi } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { Bluetooth, Camera, Printer, RefreshCw, Save, Server, ShieldCheck, TabletSmartphone, Trash2, Wifi } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, StyleSheet, Text, View } from 'react-native';
 import type {
   ThermalPrinterDevice,
   UsbThermalPrinterDevice,
 } from '../../modules/thermal-printer/src/ThermalPrinter.types';
 import { TERMINAL_ID } from '../api/client';
 import { healthService } from '../api/services';
+import { ChatAvatar } from '../components/chat';
 import { Button, Chip, Field, GlassCard, Header, ScalePressable, Screen, SectionHeader, StatusPill } from '../components/ui';
 import type { RootStackParamList } from '../navigation/types';
 import { palette, radius, spacing, type } from '../theme/tokens';
+import { useSessionStore } from '../store/sessionStore';
+import { useChatStore } from '../store/chatStore';
 import {
   bluetoothPrinterTarget,
   clearSavedThermalPrinter,
@@ -38,7 +42,35 @@ const connectionOptions: Array<{ id: PrinterConnectionType; label: string }> = [
   { id: 'network', label: 'LAN / Wi-Fi' },
 ];
 
+const MAX_PROFILE_PHOTO_BYTES = 1024 * 1024;
+const roleLabels = {
+  cashier: 'Kasir',
+  staff: 'Staf',
+  manager: 'Manajer',
+  owner: 'Owner',
+} as const;
+
+type ProfilePhotoDraft = {
+  uri: string;
+  data: string;
+  mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
+};
+
+function decodedBase64Size(value: string): number {
+  const padding = value.endsWith('==') ? 2 : value.endsWith('=') ? 1 : 0;
+  return Math.max(0, Math.floor((value.length * 3) / 4) - padding);
+}
+
 export function SettingsScreen({ navigation }: NativeStackScreenProps<RootStackParamList, 'Settings'>) {
+  const user = useSessionStore((state) => state.user);
+  const updateProfile = useSessionStore((state) => state.updateProfile);
+  const isUpdatingProfile = useSessionStore((state) => state.isUpdatingProfile);
+  const [profileName, setProfileName] = useState(user?.name ?? '');
+  const [profilePhoto, setProfilePhoto] = useState<ProfilePhotoDraft | null>(null);
+  const [removeProfilePhoto, setRemoveProfilePhoto] = useState(false);
+  const [profileNameError, setProfileNameError] = useState<string | null>(null);
+  const [profilePhotoError, setProfilePhotoError] = useState<string | null>(null);
+  const [profileSaveError, setProfileSaveError] = useState<string | null>(null);
   const [serverStatus, setServerStatus] = useState<ServerStatus>('unknown');
   const [serverMessage, setServerMessage] = useState('Belum diperiksa');
   const [savedPrinter, setSavedPrinter] = useState<SavedThermalPrinter | null>(null);
@@ -56,6 +88,10 @@ export function SettingsScreen({ navigation }: NativeStackScreenProps<RootStackP
       : 'Konfigurasi printer thermal tersedia di aplikasi Android.',
   );
   const [printerTone, setPrinterTone] = useState<'neutral' | 'success' | 'danger'>('neutral');
+
+  useEffect(() => {
+    setProfileName(user?.name ?? '');
+  }, [user?.id, user?.name]);
 
   useEffect(() => {
     getSavedThermalPrinter()
@@ -215,9 +251,122 @@ export function SettingsScreen({ navigation }: NativeStackScreenProps<RootStackP
     }
   };
 
+  const pickProfilePhoto = async () => {
+    setProfilePhotoError(null);
+    setProfileSaveError(null);
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Izin diperlukan', 'Beri izin akses galeri untuk memilih foto profil.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.55,
+      base64: true,
+    });
+    const asset = result.assets?.[0];
+    if (!asset?.base64) return;
+    const normalizedMime = asset.mimeType === 'image/jpg' ? 'image/jpeg' : asset.mimeType;
+    if (normalizedMime !== 'image/jpeg' && normalizedMime !== 'image/png' && normalizedMime !== 'image/webp') {
+      setProfilePhotoError('Gunakan foto berformat JPG, PNG, atau WebP.');
+      return;
+    }
+    if (decodedBase64Size(asset.base64) > MAX_PROFILE_PHOTO_BYTES) {
+      setProfilePhotoError('Foto masih lebih dari 1 MB setelah dipotong. Pilih foto dengan resolusi lebih kecil.');
+      return;
+    }
+    setProfilePhoto({ uri: asset.uri, data: asset.base64, mimeType: normalizedMime });
+    setRemoveProfilePhoto(false);
+  };
+
+  const saveProfile = async () => {
+    const name = profileName.trim().replace(/\s+/g, ' ');
+    if (name.length < 2) {
+      setProfileNameError('Nama tampilan minimal 2 karakter.');
+      return;
+    }
+    setProfileNameError(null);
+    setProfilePhotoError(null);
+    setProfileSaveError(null);
+    try {
+      await updateProfile({
+        name,
+        avatar: profilePhoto ? { data: profilePhoto.data, mimeType: profilePhoto.mimeType } : undefined,
+        removeAvatar: removeProfilePhoto,
+      });
+      setProfilePhoto(null);
+      setRemoveProfilePhoto(false);
+      void useChatStore.getState().loadConversations();
+      Alert.alert('Profil diperbarui', 'Nama dan foto profil Anda sudah tersimpan.');
+    } catch (error) {
+      setProfileSaveError(error instanceof Error ? error.message : 'Profil belum dapat diperbarui.');
+    }
+  };
+
   return (
     <Screen bottomInset={spacing.xl}>
-      <Header onBack={navigation.goBack} subtitle="Kesiapan perangkat dan keamanan akun" title="Pengaturan" />
+      <Header onBack={navigation.goBack} subtitle="Profil, perangkat, dan keamanan akun" title="Pengaturan" />
+
+      <SectionHeader title="Profil saya" />
+      <GlassCard contentStyle={styles.card}>
+        <View style={styles.profileHeading}>
+          <View accessibilityLabel={`Foto profil ${user?.name ?? 'pengguna'}`} accessibilityRole="image">
+            <ChatAvatar
+              accent={palette.rose}
+              avatarUpdatedAt={removeProfilePhoto ? null : user?.avatarUpdatedAt}
+              imageUri={profilePhoto?.uri}
+              initials={(profileName || user?.name || 'P').split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()}
+              size={82}
+              userId={user?.id}
+            />
+          </View>
+          <View style={styles.profileCopy}>
+            <Text style={styles.cardTitle}>{user?.email}</Text>
+            <Text style={styles.cardSubtitle}>Nama dan foto ini tampil di obrolan tim.</Text>
+            {user ? <StatusPill label={roleLabels[user.role]} tone="info" /> : null}
+          </View>
+        </View>
+        <Field
+          autoCapitalize="words"
+          autoComplete="name"
+          error={profileNameError}
+          helper="Gunakan nama yang mudah dikenali oleh tim."
+          label="Nama tampilan"
+          maxLength={160}
+          onChangeText={(value) => {
+            setProfileName(value);
+            if (profileNameError) setProfileNameError(null);
+            if (profileSaveError) setProfileSaveError(null);
+          }}
+          value={profileName}
+        />
+        <Text style={styles.profilePhotoHint}>Foto JPG, PNG, atau WebP · maksimal 1 MB.</Text>
+        {profilePhotoError ? <Text accessibilityLiveRegion="polite" style={styles.profileError}>{profilePhotoError}</Text> : null}
+        <View style={styles.profileActions}>
+          <Button icon={Camera} label={profilePhoto || user?.avatarUpdatedAt ? 'Ganti foto' : 'Pilih foto'} onPress={pickProfilePhoto} variant="secondary" />
+          {profilePhoto || (user?.avatarUpdatedAt && !removeProfilePhoto) ? (
+            <Button
+              icon={Trash2}
+              label="Hapus foto"
+              onPress={() => {
+                setProfilePhoto(null);
+                setRemoveProfilePhoto(Boolean(user?.avatarUpdatedAt));
+              }}
+              variant="ghost"
+            />
+          ) : null}
+        </View>
+        <Button
+          disabled={!user || !profileName.trim()}
+          icon={Save}
+          label="Simpan profil"
+          loading={isUpdatingProfile}
+          onPress={() => void saveProfile()}
+        />
+        {profileSaveError ? <Text accessibilityLiveRegion="polite" style={styles.profileError}>{profileSaveError}</Text> : null}
+      </GlassCard>
 
       <SectionHeader title="Koneksi" />
       <GlassCard contentStyle={styles.card}>
@@ -418,6 +567,11 @@ export function SettingsScreen({ navigation }: NativeStackScreenProps<RootStackP
 
 const styles = StyleSheet.create({
   card: { padding: spacing.md, gap: spacing.md },
+  profileHeading: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  profileCopy: { flex: 1, alignItems: 'flex-start', gap: spacing.xs },
+  profilePhotoHint: { color: palette.muted, fontFamily: type.regular, fontSize: 10, lineHeight: 15 },
+  profileError: { color: palette.danger, fontFamily: type.medium, fontSize: 11.5, lineHeight: 17 },
+  profileActions: { gap: spacing.xs },
   cardHeading: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   headingIcon: { width: 46, height: 46, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.roseSoft },
   headingCopy: { flex: 1 },

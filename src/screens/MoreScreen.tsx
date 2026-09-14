@@ -1,7 +1,8 @@
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { BellRing, ChevronRight, Donut, LogOut, PackageOpen, ReceiptText, RefreshCw, Settings, ShieldCheck, Store, UserRound, WalletCards } from 'lucide-react-native';
+import { BellRing, ChevronRight, Donut, LogOut, PackageOpen, Pencil, ReceiptText, RefreshCw, Settings, ShieldCheck, Store, WalletCards } from 'lucide-react-native';
 import { Alert, StyleSheet, Text, View } from 'react-native';
+import { ChatAvatar } from '../components/chat';
 import { BrandLogo, Button, GlassCard, Header, ScalePressable, Screen, SectionHeader, StatusPill } from '../components/ui';
 import type { RootStackParamList } from '../navigation/types';
 import { useOperationsStore } from '../store/operationsStore';
@@ -39,10 +40,23 @@ export function MoreScreen() {
     <Screen>
       <Header eyebrow="Workspace" subtitle="Operasional, perangkat, dan akun" title="Lainnya" />
 
-      <GlassCard dark contentStyle={styles.profileCard}>
-        <View style={styles.avatar}><UserRound color={palette.white} size={27} /></View>
-        <View style={styles.profileCopy}><Text style={styles.profileName}>{user?.name}</Text><Text style={styles.profileEmail}>{user?.email}</Text><View style={styles.profileBadges}><StatusPill label={user ? roleLabels[user.role] : 'Pengguna'} tone="info" /><StatusPill label={shift?.status === 'open' ? 'Shift aktif' : 'Shift tutup'} tone={shift?.status === 'open' ? 'success' : 'warning'} /></View></View>
-      </GlassCard>
+      <ScalePressable
+        accessibilityHint="Membuka pengaturan nama dan foto profil"
+        accessibilityLabel={`Edit profil ${user?.name ?? 'pengguna'}`}
+        onPress={() => navigation.navigate('Settings')}
+      >
+        <GlassCard dark contentStyle={styles.profileCard}>
+          <ChatAvatar
+            accent={palette.rose}
+            avatarUpdatedAt={user?.avatarUpdatedAt}
+            initials={(user?.name ?? 'P').split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()}
+            size={64}
+            userId={user?.id}
+          />
+          <View style={styles.profileCopy}><Text style={styles.profileName}>{user?.name}</Text><Text style={styles.profileEmail}>{user?.email}</Text><View style={styles.profileBadges}><StatusPill label={user ? roleLabels[user.role] : 'Pengguna'} tone="info" /><StatusPill label={shift?.status === 'open' ? 'Shift aktif' : 'Shift tutup'} tone={shift?.status === 'open' ? 'success' : 'warning'} /></View></View>
+          <View style={styles.editProfileIcon}><Pencil color={palette.white} size={17} strokeWidth={2.1} /></View>
+        </GlassCard>
+      </ScalePressable>
 
       <SectionHeader title="Operasional" />
       <GlassCard contentStyle={styles.menuCard}>
@@ -85,11 +99,11 @@ function MenuRow({ icon: Icon, label, subtitle, onPress }: { icon: typeof Store;
 
 const styles = StyleSheet.create({
   profileCard: { minHeight: 128, padding: spacing.lg, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  avatar: { width: 64, height: 64, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(232,140,164,0.34)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
   profileCopy: { flex: 1 },
   profileName: { color: palette.white, fontFamily: type.bold, fontSize: 17 },
   profileEmail: { color: 'rgba(255,255,255,0.62)', fontFamily: type.regular, fontSize: 11, marginTop: 3 },
   profileBadges: { flexDirection: 'row', gap: spacing.xs, marginTop: spacing.sm },
+  editProfileIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.12)' },
   menuCard: { paddingHorizontal: spacing.md },
   menuRow: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderBottomWidth: 1, borderBottomColor: palette.line },
   menuIcon: { width: 44, height: 44, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.roseSoft },

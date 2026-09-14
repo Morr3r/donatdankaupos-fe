@@ -14,7 +14,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Izinkan Donat Dankau POS memilih foto produk dari galeri."
+          "photosPermission": "Izinkan Donat Dankau POS memilih foto produk, pesan, dan profil dari galeri."
         }
       ],
       "expo-sharing",

@@ -18,6 +18,15 @@ export const setApiAccessToken = (token: string | null) => {
   accessToken = token;
 };
 
+/** Authenticated source for avatars served as binary rather than inflating every chat payload. */
+export const profileImageSource = (userId?: string | null, version?: string | null) => {
+  if (!API_BASE_URL || !accessToken || !userId || !version) return undefined;
+  return {
+    uri: `${API_BASE_URL}/auth/users/${encodeURIComponent(userId)}/avatar?v=${encodeURIComponent(version)}`,
+    headers: { Authorization: `Bearer ${accessToken}` },
+  };
+};
+
 export const setTokenRefresher = (refresher: (() => Promise<string | null>) | null) => {
   tokenRefresher = refresher;
 };

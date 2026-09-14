@@ -19,6 +19,16 @@ export interface User {
   outletName: string;
   taxRateBps: number;
   dineInServiceRateBps: number;
+  avatarUpdatedAt?: string | null;
+}
+
+export interface ProfileUpdatePayload {
+  name: string;
+  avatar?: {
+    data: string;
+    mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
+  } | null;
+  removeAvatar?: boolean;
 }
 
 export interface Shift {
@@ -268,6 +278,7 @@ export interface ChatContact {
   accent: string;
   isOnline: boolean;
   lastSeenAt?: string | null;
+  avatarUpdatedAt?: string | null;
   conversationId?: string | null;
 }
 
@@ -284,6 +295,7 @@ export interface ChatMember {
   isOnline: boolean;
   isTyping: boolean;
   lastSeenAt?: string | null;
+  avatarUpdatedAt?: string | null;
   leftAt?: string | null;
 }
 
@@ -370,6 +382,10 @@ export interface ChatConversation {
   accent: string;
   initials: string;
   counterpartId?: string | null;
+  counterpartRole?: UserRole | null;
+  avatarUserId?: string | null;
+  avatarUpdatedAt?: string | null;
+  lastSeenAt?: string | null;
   memberCount: number;
   members: ChatMember[];
   myMemberRole: ChatMemberRole;

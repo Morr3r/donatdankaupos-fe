@@ -197,9 +197,11 @@ export function NewChatScreen() {
                     >
                       <ChatAvatar
                         accent={contact.accent}
+                        avatarUpdatedAt={contact.avatarUpdatedAt}
                         initials={contact.initials}
                         isOnline={contact.isOnline}
                         size={46}
+                        userId={contact.id}
                       />
                       <View style={styles.contactCopy}>
                         <Text numberOfLines={1} style={styles.contactName}>{contact.name}</Text>

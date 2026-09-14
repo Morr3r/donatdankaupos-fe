@@ -24,6 +24,8 @@ import type {
   ChatSyncResult,
   ChatSearchHit,
   ChatAttachmentPayload,
+  ProfileUpdatePayload,
+  User,
 } from '../types/domain';
 import { apiFileRequest, apiRequest } from './client';
 
@@ -35,6 +37,7 @@ export const authService = {
     skipAuthRefresh: true,
   }),
   logout: (refreshToken: string) => apiRequest<void>('/auth/logout', { method: 'POST', body: { refreshToken } }),
+  updateProfile: (payload: ProfileUpdatePayload) => apiRequest<User>('/auth/me', { method: 'PATCH', body: payload, timeoutMs: 45_000 }),
 };
 
 export interface ProductInput {

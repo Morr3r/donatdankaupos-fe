@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { authService } from '../api/services';
 import { setApiAccessToken, setTokenRefresher } from '../api/client';
 import { sessionStorage } from '../storage/sessionStorage';
-import type { LoginPayload, User } from '../types/domain';
+import type { LoginPayload, ProfileUpdatePayload, User } from '../types/domain';
 import { normalizeBrandCopy } from '../utils/brand';
 import { unregisterCurrentPushDevice } from '../notifications/pushNotifications';
 
@@ -20,10 +20,12 @@ interface SessionState {
   status: SessionStatus;
   user: User | null;
   isSubmitting: boolean;
+  isUpdatingProfile: boolean;
   error: string | null;
   hydrate: () => Promise<void>;
   login: (payload: LoginPayload) => Promise<void>;
   logout: () => Promise<void>;
+  updateProfile: (payload: ProfileUpdatePayload) => Promise<User>;
   clearError: () => void;
 }
 
@@ -47,6 +49,7 @@ export const useSessionStore = create<SessionState>((set) => ({
   status: 'bootstrapping',
   user: null,
   isSubmitting: false,
+  isUpdatingProfile: false,
   error: null,
   hydrate: async () => {
     try {
@@ -94,6 +97,25 @@ export const useSessionStore = create<SessionState>((set) => ({
       setApiAccessToken(null);
       setTokenRefresher(null);
       set({ status: 'unauthenticated', user: null });
+    }
+  },
+  updateProfile: async (payload) => {
+    set({ isUpdatingProfile: true, error: null });
+    try {
+      const user = await authService.updateProfile(payload);
+      const raw = await sessionStorage.getItem(SESSION_KEY);
+      if (raw) {
+        const current = JSON.parse(raw) as StoredSession;
+        await sessionStorage.setItem(SESSION_KEY, JSON.stringify({ ...current, user }));
+      }
+      set({ user, isUpdatingProfile: false });
+      return user;
+    } catch (error) {
+      set({
+        isUpdatingProfile: false,
+        error: error instanceof Error ? error.message : 'Profil belum dapat diperbarui.',
+      });
+      throw error;
     }
   },
   clearError: () => set({ error: null }),

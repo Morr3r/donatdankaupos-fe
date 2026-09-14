@@ -197,10 +197,12 @@ export function ChatInfoScreen() {
         <View style={styles.identity}>
           <ChatAvatar
             accent={conversation.accent}
+            avatarUpdatedAt={conversation.avatarUpdatedAt}
             initials={conversation.initials}
             isGroup={isGroup}
             isOnline={conversation.isOnline}
             size={92}
+            userId={conversation.avatarUserId}
           />
           <View style={styles.identityCopy}>
             <Text style={styles.identityTitle}>{conversation.title}</Text>
@@ -254,9 +256,11 @@ export function ChatInfoScreen() {
               <View key={member.userId} style={styles.memberRow}>
                 <ChatAvatar
                   accent={member.accent}
+                  avatarUpdatedAt={member.avatarUpdatedAt}
                   initials={member.initials}
                   isOnline={member.isOnline}
                   size={42}
+                  userId={member.userId}
                 />
                 <View style={styles.memberCopy}>
                   <Text numberOfLines={1} style={styles.memberName}>
@@ -364,7 +368,13 @@ export function ChatInfoScreen() {
                 }
                 style={[styles.candidateRow, isSelected && styles.candidateRowSelected]}
               >
-                <ChatAvatar accent={contact.accent} initials={contact.initials} size={38} />
+                <ChatAvatar
+                  accent={contact.accent}
+                  avatarUpdatedAt={contact.avatarUpdatedAt}
+                  initials={contact.initials}
+                  size={38}
+                  userId={contact.id}
+                />
                 <View style={styles.memberCopy}>
                   <Text numberOfLines={1} style={styles.memberName}>{contact.name}</Text>
                   <Text numberOfLines={1} style={styles.memberMeta}>

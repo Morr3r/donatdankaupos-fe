@@ -10,12 +10,14 @@ import {
 import { File } from 'expo-file-system';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
-import { ChevronLeft, ImageIcon, Info, MessageSquare, ReceiptText } from 'lucide-react-native';
+import { Check, CheckCheck, ChevronLeft, ImageIcon, Info, MessageSquare, ReceiptText } from 'lucide-react-native';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  BackHandler,
   FlatList,
+  Keyboard,
   KeyboardAvoidingView,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
@@ -53,6 +55,45 @@ const EDIT_WINDOW_MS = 15 * 60_000;
 const MAX_IMAGE_BASE64 = 690_000;
 const MAX_AUDIO_BASE64 = 2_900_000;
 const MAX_RECORDING_MS = 120_000;
+
+const roleLabels = {
+  cashier: 'Kasir',
+  staff: 'Staf',
+  manager: 'Manajer',
+  owner: 'Owner',
+} as const;
+
+const lastOnlineClock = new Intl.DateTimeFormat('id-ID', {
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+  timeZone: 'Asia/Jakarta',
+});
+
+const lastOnlineDate = new Intl.DateTimeFormat('id-ID', {
+  day: 'numeric',
+  month: 'short',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+  timeZone: 'Asia/Jakarta',
+});
+
+function jakartaDayKey(value: string | Date): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date(value));
+}
+
+function formatLastOnline(value?: string | null): string {
+  if (!value) return 'Waktu terakhir online belum tersedia';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Waktu terakhir online belum tersedia';
+  const today = jakartaDayKey(new Date());
+  const yesterday = jakartaDayKey(new Date(Date.now() - 86_400_000));
+  const key = jakartaDayKey(date);
+  if (key === today) return `Terakhir online pukul ${lastOnlineClock.format(date)}`;
+  if (key === yesterday) return `Terakhir online kemarin pukul ${lastOnlineClock.format(date)}`;
+  return `Terakhir online ${lastOnlineDate.format(date)}`;
+}
 
 async function audioUriToBase64(uri: string): Promise<string> {
   if (Platform.OS !== 'web') return new File(uri).base64();
@@ -137,14 +178,12 @@ export function ChatRoomScreen() {
   const [transactionPickerVisible, setTransactionPickerVisible] = useState(false);
   const [forwardTarget, setForwardTarget] = useState<ChatMessage | null>(null);
   const [isForwarding, setIsForwarding] = useState(false);
+  const [readInfoTarget, setReadInfoTarget] = useState<ChatMessage | null>(null);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  const keyboardVisibleRef = useRef(false);
 
   useLayoutEffect(() => {
     navigation.setOptions({ headerShown: false });
-  }, [navigation]);
-
-  const handleBack = useCallback(() => {
-    if (navigation.canGoBack()) navigation.goBack();
-    else navigation.navigate('MainTabs', { screen: 'Chat' });
   }, [navigation]);
 
   // Tighten the poll to room cadence while this screen owns the foreground, and hand it
@@ -166,7 +205,23 @@ export function ChatRoomScreen() {
   }, [conversationId, latestSeq, markRead]);
 
   const rows = useMemo<Row[]>(() => {
-    const ordered = [...(messages ?? [])].sort((a, b) => a.seq - b.seq);
+    const receiptPeers = conversation?.kind === 'group'
+      ? conversation.members.filter((member) => member.userId !== currentUser?.id && !member.leftAt)
+      : [];
+    const ordered = [...(messages ?? [])]
+      .sort((a, b) => a.seq - b.seq)
+      .map((message) => {
+        if (!receiptPeers.length || message.senderId !== currentUser?.id) return message;
+        const readByCount = receiptPeers.filter((member) => member.lastReadSeq >= message.seq).length;
+        const deliveredToCount = receiptPeers.filter((member) => member.lastDeliveredSeq >= message.seq).length;
+        return {
+          ...message,
+          readByCount,
+          isReadByAll: readByCount === receiptPeers.length,
+          deliveredToCount,
+          isDeliveredToAll: deliveredToCount === receiptPeers.length,
+        };
+      });
     return ordered.map((message, index) => {
       const previous = ordered[index - 1];
       const next = ordered[index + 1];
@@ -178,7 +233,7 @@ export function ChatRoomScreen() {
         isClusterEnd: !next || !isSameCluster(next, message),
       };
     });
-  }, [conversation?.kind, messages]);
+  }, [conversation?.kind, conversation?.members, currentUser?.id, messages]);
 
   const scrollToEnd = useCallback((animated = true) => {
     requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated }));
@@ -194,6 +249,24 @@ export function ChatRoomScreen() {
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
     pinnedToBottom.current = contentSize.height - contentOffset.y - layoutMeasurement.height < 120;
   }, []);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSubscription = Keyboard.addListener(showEvent, () => {
+      keyboardVisibleRef.current = true;
+      setIsKeyboardVisible(true);
+      if (pinnedToBottom.current) scrollToEnd(false);
+    });
+    const hideSubscription = Keyboard.addListener(hideEvent, () => {
+      keyboardVisibleRef.current = false;
+      setIsKeyboardVisible(false);
+    });
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, [scrollToEnd]);
 
   useEffect(() => {
     if (!newestSeq || !pinnedToBottom.current) return;
@@ -442,7 +515,102 @@ export function ChatRoomScreen() {
     ? (isMine(actionTarget) || conversation?.myMemberRole === 'admin') && !actionTarget.outboxStatus
     : false;
 
+  const canShowReadInfo = Boolean(
+    actionTarget &&
+      conversation?.kind === 'group' &&
+      isMine(actionTarget) &&
+      !actionTarget.outboxStatus,
+  );
+  const receiptMembers = useMemo(
+    () => (conversation?.members ?? []).filter(
+      (member) => member.userId !== currentUser?.id && !member.leftAt,
+    ),
+    [conversation?.members, currentUser?.id],
+  );
+  const readMembers = useMemo(
+    () => readInfoTarget
+      ? receiptMembers.filter((member) => member.lastReadSeq >= readInfoTarget.seq)
+      : [],
+    [readInfoTarget, receiptMembers],
+  );
+  const unreadMembers = useMemo(
+    () => readInfoTarget
+      ? receiptMembers.filter((member) => member.lastReadSeq < readInfoTarget.seq)
+      : [],
+    [readInfoTarget, receiptMembers],
+  );
+  const actionReadByCount = actionTarget
+    ? receiptMembers.filter((member) => member.lastReadSeq >= actionTarget.seq).length
+    : 0;
+
+  const handleBack = useCallback((): boolean => {
+    if (keyboardVisibleRef.current) {
+      Keyboard.dismiss();
+      return true;
+    }
+    if (actionTarget) {
+      setActionTarget(null);
+      return true;
+    }
+    if (readInfoTarget) {
+      setReadInfoTarget(null);
+      return true;
+    }
+    if (editingMessage) {
+      setEditingMessage(null);
+      setDraft('');
+      return true;
+    }
+    if (replyingTo) {
+      setReplyingTo(null);
+      return true;
+    }
+    if (isRecording) {
+      void handleCancelRecording();
+      return true;
+    }
+    if (attachmentMenuVisible) {
+      setAttachmentMenuVisible(false);
+      return true;
+    }
+    if (transactionPickerVisible) {
+      setTransactionPickerVisible(false);
+      return true;
+    }
+    if (forwardTarget) {
+      if (!isForwarding) setForwardTarget(null);
+      return true;
+    }
+    if (navigation.canGoBack()) navigation.goBack();
+    else navigation.reset({ index: 0, routes: [{ name: 'MainTabs', params: { screen: 'Chat' } }] });
+    return true;
+  }, [
+    actionTarget,
+    attachmentMenuVisible,
+    editingMessage,
+    forwardTarget,
+    handleCancelRecording,
+    isForwarding,
+    isRecording,
+    navigation,
+    readInfoTarget,
+    replyingTo,
+    transactionPickerVisible,
+  ]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS !== 'android') return undefined;
+      const subscription = BackHandler.addEventListener('hardwareBackPress', handleBack);
+      return () => subscription.remove();
+    }, [handleBack]),
+  );
+
   const typingNames = conversation?.typingNames ?? [];
+  const directRole = conversation?.counterpartRole ? roleLabels[conversation.counterpartRole] : null;
+  const headerTitle = conversation?.kind === 'direct' && directRole
+    ? `${conversation.title} - ${directRole}`
+    : conversation?.title ?? 'Memuat…';
   const presenceLabel = typingNames.length
     ? conversation?.kind === 'group'
       ? `${typingNames.join(', ')} sedang mengetik…`
@@ -450,8 +618,8 @@ export function ChatRoomScreen() {
     : conversation?.kind === 'group'
       ? `${conversation.memberCount} anggota`
       : conversation?.isOnline
-        ? 'online'
-        : (conversation?.subtitle ?? '');
+        ? 'Online'
+        : formatLastOnline(conversation?.lastSeenAt);
 
   return (
     <AppBackground>
@@ -467,13 +635,15 @@ export function ChatRoomScreen() {
         >
           <ChatAvatar
             accent={conversation?.accent ?? palette.cocoa}
+            avatarUpdatedAt={conversation?.avatarUpdatedAt}
             initials={conversation?.initials ?? '··'}
             isGroup={conversation?.kind === 'group'}
             isOnline={conversation?.isOnline}
             size={40}
+            userId={conversation?.avatarUserId}
           />
           <View style={styles.headerCopy}>
-            <Text numberOfLines={1} style={styles.headerTitle}>{conversation?.title ?? 'Memuat…'}</Text>
+            <Text numberOfLines={1} style={styles.headerTitle}>{headerTitle}</Text>
             <Text
               numberOfLines={1}
               style={[styles.headerSubtitle, typingNames.length > 0 && styles.headerSubtitleTyping]}
@@ -492,14 +662,14 @@ export function ChatRoomScreen() {
       </View>
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={0}
         style={styles.flex}
       >
         <FlatList
           contentContainerStyle={styles.listContent}
           data={rows}
-          keyboardDismissMode="interactive"
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
           keyboardShouldPersistTaps="handled"
           keyExtractor={(row) => row.key}
           ListEmptyComponent={
@@ -559,7 +729,7 @@ export function ChatRoomScreen() {
         />
 
         <Composer
-          bottomInset={insets.bottom}
+          bottomInset={Platform.OS === 'android' && isKeyboardVisible ? 0 : insets.bottom}
           editingMessage={editingMessage}
           isRecording={isRecording}
           isSending={isSending}
@@ -586,6 +756,7 @@ export function ChatRoomScreen() {
       <MessageActionSheet
         canDelete={canDelete}
         canEdit={canEdit}
+        canShowReadInfo={canShowReadInfo}
         message={actionTarget}
         onClose={() => setActionTarget(null)}
         onDelete={() => {
@@ -604,6 +775,10 @@ export function ChatRoomScreen() {
           setForwardTarget(actionTarget);
           setActionTarget(null);
         }}
+        onShowReadInfo={() => {
+          setReadInfoTarget(actionTarget);
+          setActionTarget(null);
+        }}
         onReact={(emoji) => {
           if (actionTarget) void reactToMessage(actionTarget.id, emoji).catch(() => undefined);
           setActionTarget(null);
@@ -612,7 +787,67 @@ export function ChatRoomScreen() {
           setReplyingTo(actionTarget);
           setActionTarget(null);
         }}
+        readByCount={actionReadByCount}
       />
+
+      <FormModal
+        onClose={() => setReadInfoTarget(null)}
+        subtitle={readInfoTarget ? `Pesan dikirim ${lastOnlineDate.format(new Date(readInfoTarget.createdAt))}` : undefined}
+        title="Info pesan"
+        visible={Boolean(readInfoTarget)}
+      >
+        <View style={styles.receiptSummary}>
+          <View style={styles.receiptSummaryIcon}>
+            <CheckCheck color={palette.info} size={22} strokeWidth={2.5} />
+          </View>
+          <View style={styles.receiptSummaryCopy}>
+            <Text style={styles.receiptSummaryTitle}>Dibaca oleh {readMembers.length} orang</Text>
+            <Text style={styles.receiptSummaryBody}>{unreadMembers.length} anggota belum membaca pesan ini</Text>
+          </View>
+        </View>
+        <Text style={styles.receiptSectionTitle}>Dibaca oleh</Text>
+        {readMembers.length ? readMembers.map((member) => (
+          <View key={member.userId} style={styles.receiptMemberRow}>
+            <ChatAvatar
+              accent={member.accent}
+              avatarUpdatedAt={member.avatarUpdatedAt}
+              initials={member.initials}
+              isOnline={member.isOnline}
+              size={42}
+              userId={member.userId}
+            />
+            <View style={styles.receiptMemberCopy}>
+              <Text numberOfLines={1} style={styles.receiptMemberName}>{member.name}</Text>
+              <Text numberOfLines={1} style={styles.receiptMemberMeta}>{roleLabels[member.role]} · Sudah dibaca</Text>
+            </View>
+            <CheckCheck color={palette.info} size={19} strokeWidth={2.5} />
+          </View>
+        )) : (
+          <Text style={styles.receiptEmpty}>Belum ada anggota lain yang membaca pesan ini.</Text>
+        )}
+        {unreadMembers.length ? (
+          <>
+            <Text style={styles.receiptSectionTitle}>Belum dibaca</Text>
+            {unreadMembers.map((member) => (
+              <View key={member.userId} style={styles.receiptMemberRow}>
+                <ChatAvatar
+                  accent={member.accent}
+                  avatarUpdatedAt={member.avatarUpdatedAt}
+                  initials={member.initials}
+                  isOnline={member.isOnline}
+                  size={42}
+                  userId={member.userId}
+                />
+                <View style={styles.receiptMemberCopy}>
+                  <Text numberOfLines={1} style={styles.receiptMemberName}>{member.name}</Text>
+                  <Text numberOfLines={1} style={styles.receiptMemberMeta}>{roleLabels[member.role]}</Text>
+                </View>
+                <Check color={palette.muted} size={18} strokeWidth={2.3} />
+              </View>
+            ))}
+          </>
+        ) : null}
+      </FormModal>
 
       <FormModal
         onClose={() => setAttachmentMenuVisible(false)}
@@ -736,4 +971,15 @@ const styles = StyleSheet.create({
   attachmentChoiceCopy: { flex: 1, gap: 2 },
   attachmentChoiceTitle: { color: palette.ink, fontFamily: type.bold, fontSize: 14 },
   attachmentChoiceBody: { color: palette.muted, fontFamily: type.regular, fontSize: 12 },
+  receiptSummary: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.sm, borderRadius: radius.md, backgroundColor: palette.infoSoft },
+  receiptSummaryIcon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.white },
+  receiptSummaryCopy: { flex: 1, gap: 2 },
+  receiptSummaryTitle: { color: palette.ink, fontFamily: type.bold, fontSize: 14 },
+  receiptSummaryBody: { color: palette.muted, fontFamily: type.regular, fontSize: 11.5 },
+  receiptSectionTitle: { color: palette.inkSoft, fontFamily: type.bold, fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', marginTop: spacing.xs },
+  receiptMemberRow: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xxs, borderBottomWidth: 1, borderBottomColor: palette.line },
+  receiptMemberCopy: { flex: 1, gap: 2 },
+  receiptMemberName: { color: palette.ink, fontFamily: type.semibold, fontSize: 13.5 },
+  receiptMemberMeta: { color: palette.muted, fontFamily: type.regular, fontSize: 11 },
+  receiptEmpty: { color: palette.muted, fontFamily: type.regular, fontSize: 12, lineHeight: 18, paddingVertical: spacing.sm },
 });
