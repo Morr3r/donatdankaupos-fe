@@ -8,6 +8,7 @@ node_modules/
 .expo-export-test/
 .expo-export-codex-ui-test/
 dist/
+dist-*/
 web-build/
 expo-env.d.ts
 

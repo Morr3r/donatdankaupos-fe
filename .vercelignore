@@ -5,6 +5,7 @@ node_modules/
 android/
 ios/
 dist/
+dist-*/
 output/
 *.log
 *.tsbuildinfo
