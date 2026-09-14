@@ -10,6 +10,15 @@ export function navigateFromNotificationData(data: Record<string, unknown>) {
     return;
   }
   const route = data.route;
+  if (route === 'chat') {
+    const conversationId = data.conversationId;
+    if (typeof conversationId === 'string') {
+      navigationRef.navigate('ChatRoom', { conversationId });
+      return;
+    }
+    navigationRef.navigate('MainTabs', { screen: 'Chat' });
+    return;
+  }
   if (route === 'order_detail' && typeof data.transactionId === 'string') {
     navigationRef.navigate('OrderDetail', { transactionId: data.transactionId });
     return;

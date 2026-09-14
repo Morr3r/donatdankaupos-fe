@@ -4,6 +4,7 @@ export type MainTabParamList = {
   Home: undefined;
   POS: undefined;
   Orders: { status?: 'pending'; focusToken?: number } | undefined;
+  Chat: undefined;
   Reports: undefined;
   More: undefined;
 };
@@ -21,6 +22,9 @@ export type RootStackParamList = {
   Products: undefined;
   ProductEditor: { productId?: string } | undefined;
   Notifications: undefined;
+  ChatRoom: { conversationId: string };
+  ChatInfo: { conversationId: string };
+  NewChat: undefined;
 };
 
 declare global {

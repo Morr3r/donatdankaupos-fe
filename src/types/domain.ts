@@ -250,3 +250,163 @@ export interface PushTestResult {
   failedDevices: number;
   message: string;
 }
+
+
+export type ChatConversationKind = 'direct' | 'group';
+export type ChatMessageKind = 'text' | 'image' | 'system';
+export type ChatMemberRole = 'member' | 'admin';
+/** Lifecycle of a message the device is still trying to hand to the server. */
+export type ChatOutboxStatus = 'sending' | 'failed';
+
+export interface ChatContact {
+  id: string;
+  name: string;
+  role: UserRole;
+  outletId: string;
+  outletName: string;
+  initials: string;
+  accent: string;
+  isOnline: boolean;
+  lastSeenAt?: string | null;
+  conversationId?: string | null;
+}
+
+export interface ChatMember {
+  userId: string;
+  name: string;
+  role: UserRole;
+  memberRole: ChatMemberRole;
+  outletName: string;
+  initials: string;
+  accent: string;
+  lastReadSeq: number;
+  isOnline: boolean;
+  isTyping: boolean;
+  lastSeenAt?: string | null;
+  leftAt?: string | null;
+}
+
+export interface ChatAttachmentMeta {
+  id: string;
+  mimeType: string;
+  byteSize: number;
+  width?: number | null;
+  height?: number | null;
+  thumbnail?: string | null;
+}
+
+export interface ChatAttachmentPayload extends ChatAttachmentMeta {
+  data: string;
+}
+
+export interface ChatReaction {
+  emoji: string;
+  count: number;
+  userIds: string[];
+  userNames: string[];
+  reactedByMe: boolean;
+}
+
+export interface ChatReplyPreview {
+  id: string;
+  seq: number;
+  senderName: string;
+  kind: ChatMessageKind;
+  preview: string;
+  isDeleted: boolean;
+}
+
+export interface ChatMessage {
+  id: string;
+  conversationId: string;
+  seq: number;
+  senderId?: string | null;
+  senderName: string;
+  kind: ChatMessageKind;
+  body: string;
+  clientMessageId?: string | null;
+  replyTo?: ChatReplyPreview | null;
+  attachment?: ChatAttachmentMeta | null;
+  reactions: ChatReaction[];
+  systemData: Record<string, unknown>;
+  editedAt?: string | null;
+  deletedAt?: string | null;
+  createdAt: string;
+  readByCount: number;
+  isReadByAll: boolean;
+  /** Present only while the message lives in the local outbox. */
+  outboxStatus?: ChatOutboxStatus;
+  /** Local preview URI so an image renders before the upload finishes. */
+  localImageUri?: string;
+}
+
+export interface ChatConversation {
+  id: string;
+  kind: ChatConversationKind;
+  title: string;
+  subtitle: string;
+  description?: string | null;
+  accent: string;
+  initials: string;
+  counterpartId?: string | null;
+  memberCount: number;
+  members: ChatMember[];
+  myMemberRole: ChatMemberRole;
+  lastSeq: number;
+  lastReadSeq: number;
+  unreadCount: number;
+  lastMessage?: ChatMessage | null;
+  lastMessageAt?: string | null;
+  isOnline: boolean;
+  typingNames: string[];
+  mutedUntil?: string | null;
+  isMuted: boolean;
+  isPinned: boolean;
+  isArchived: boolean;
+  createdAt: string;
+}
+
+export interface ChatConversationList {
+  items: ChatConversation[];
+  totalUnread: number;
+  cursor: string;
+}
+
+export interface ChatMessagePage {
+  items: ChatMessage[];
+  hasMoreBefore: boolean;
+  oldestSeq?: number | null;
+  latestSeq?: number | null;
+}
+
+export interface ChatSyncResult {
+  cursor: string;
+  conversations: ChatConversation[];
+  messages: ChatMessage[];
+  removedConversationIds: string[];
+  totalUnread: number;
+  serverTime: string;
+}
+
+export interface ChatSearchHit {
+  conversationId: string;
+  conversationTitle: string;
+  accent: string;
+  initials: string;
+  message: ChatMessage;
+}
+
+export interface ChatAttachmentUpload {
+  data: string;
+  mimeType: string;
+  width?: number | null;
+  height?: number | null;
+  thumbnail?: string | null;
+}
+
+export interface ChatSendPayload {
+  body: string;
+  clientMessageId: string;
+  replyToId?: string | null;
+  attachment?: ChatAttachmentUpload | null;
+}

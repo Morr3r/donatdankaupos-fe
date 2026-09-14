@@ -7,6 +7,7 @@ import { sessionStorage } from '../storage/sessionStorage';
 import type { PushPermissionState } from '../types/domain';
 
 const CHANNEL_ID = 'operations';
+const CHAT_CHANNEL_ID = 'chat';
 const PUSH_TOKEN_STORAGE_KEY = 'donat_dankau_expo_push_token_v1';
 let currentExpoPushToken: string | null = null;
 let registrationPromise: Promise<PushRegistrationResult> | null = null;
@@ -64,6 +65,17 @@ async function performPushRegistration(): Promise<PushRegistrationResult> {
         showBadge: true,
         sound: 'default',
         vibrationPattern: [0, 180, 90, 180],
+      });
+      // A separate channel so muting operational reminders never mutes messages.
+      await Notifications.setNotificationChannelAsync(CHAT_CHANNEL_ID, {
+        name: 'Pesan obrolan',
+        description: 'Pesan baru dari rekan kerja Donat Dankau.',
+        importance: Notifications.AndroidImportance.MAX,
+        lightColor: '#6B3F2A',
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PRIVATE,
+        showBadge: true,
+        sound: 'default',
+        vibrationPattern: [0, 140, 70, 140],
       });
     }
 

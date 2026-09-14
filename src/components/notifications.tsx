@@ -8,6 +8,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { navigateFromNotificationData } from '../navigation/notificationNavigation';
 import { Notifications, syncChangedPushToken } from '../notifications/pushNotifications';
 import { useNotificationStore } from '../store/notificationStore';
+import { setChatViewer, startChatPolling, stopChatPolling, useChatStore } from '../store/chatStore';
+import { useSessionStore } from '../store/sessionStore';
 import { gradients, palette, radius, shadow, spacing, type } from '../theme/tokens';
 import type { AppNotification } from '../types/domain';
 import { useReducedMotion } from '../utils/useReducedMotion';
@@ -52,14 +54,25 @@ export function NotificationBridge({ enabled }: { enabled: boolean }) {
   const registerDevice = useNotificationStore((state) => state.registerDevice);
   const markRead = useNotificationStore((state) => state.markRead);
   const reset = useNotificationStore((state) => state.reset);
+  const currentUser = useSessionStore((state) => state.user);
+  const hydrateChat = useChatStore((state) => state.hydrate);
+  const resetChat = useChatStore((state) => state.reset);
+  const applyPushedMessage = useChatStore((state) => state.applyPushedMessage);
+  const flushOutbox = useChatStore((state) => state.flushOutbox);
 
   useEffect(() => {
     if (!enabled) {
       reset();
+      resetChat();
       return undefined;
     }
     void load().catch(() => undefined);
     void registerDevice();
+
+    // The store stays session-agnostic; the bridge tells it who is signed in.
+    if (currentUser) setChatViewer({ id: currentUser.id, name: currentUser.name });
+    void hydrateChat();
+    startChatPolling('list');
 
     const refresh = () => void load().catch(() => undefined);
     const timer = setInterval(refresh, 30_000);
@@ -67,13 +80,20 @@ export function NotificationBridge({ enabled }: { enabled: boolean }) {
       if (state === 'active') {
         refresh();
         void registerDevice();
+        // Resume polling and retry anything the outbox could not deliver while away.
+        startChatPolling('list');
+        void flushOutbox();
+        return;
       }
+      // Backgrounded: push takes over, so stop burning battery and serverless invocations.
+      stopChatPolling();
     });
 
     if (Platform.OS === 'web') {
       return () => {
         clearInterval(timer);
         appStateSubscription.remove();
+        stopChatPolling();
       };
     }
 
@@ -88,8 +108,12 @@ export function NotificationBridge({ enabled }: { enabled: boolean }) {
     };
 
     const receivedSubscription = Notifications.addNotificationReceivedListener((notification) => {
-      const id = notification.request.content.data?.notificationId;
-      if (typeof id === 'string') refresh();
+      const data = notification.request.content.data as Record<string, unknown> | undefined;
+      if (data?.kind === 'chat_message' && typeof data.conversationId === 'string') {
+        applyPushedMessage(data.conversationId);
+        return;
+      }
+      if (typeof data?.notificationId === 'string') refresh();
     });
     const responseSubscription = Notifications.addNotificationResponseReceivedListener(handleResponse);
     const tokenSubscription = Notifications.addPushTokenListener((token) => {
@@ -104,8 +128,20 @@ export function NotificationBridge({ enabled }: { enabled: boolean }) {
       receivedSubscription.remove();
       responseSubscription.remove();
       tokenSubscription.remove();
+      stopChatPolling();
     };
-  }, [enabled, load, markRead, registerDevice, reset]);
+  }, [
+    applyPushedMessage,
+    currentUser,
+    enabled,
+    flushOutbox,
+    hydrateChat,
+    load,
+    markRead,
+    registerDevice,
+    reset,
+    resetChat,
+  ]);
 
   return <NotificationToast />;
 }

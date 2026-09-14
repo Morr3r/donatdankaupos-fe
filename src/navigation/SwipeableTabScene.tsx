@@ -4,7 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import type { MainTabParamList } from './types';
 
-const TAB_ROUTES: (keyof MainTabParamList)[] = ['Home', 'POS', 'Orders', 'Reports', 'More'];
+const TAB_ROUTES: (keyof MainTabParamList)[] = ['Home', 'POS', 'Orders', 'Chat', 'Reports', 'More'];
 const SWIPE_DISTANCE = 56;
 const SWIPE_VELOCITY = 520;
 

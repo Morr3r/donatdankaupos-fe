@@ -14,6 +14,16 @@ import type {
   ExpenseFundingSource,
   NotificationFeed,
   PushTestResult,
+  ChatContact,
+  ChatConversation,
+  ChatConversationKind,
+  ChatConversationList,
+  ChatMessage,
+  ChatMessagePage,
+  ChatSendPayload,
+  ChatSyncResult,
+  ChatSearchHit,
+  ChatAttachmentPayload,
 } from '../types/domain';
 import { apiFileRequest, apiRequest } from './client';
 
@@ -181,4 +191,59 @@ export const healthService = {
   check: () => apiRequest<{ status: string; service: string; version: string; timestamp: string }>('/health', {
     timeoutMs: 15_000,
   }),
+};
+
+
+export const chatService = {
+  contacts: (query?: string) => apiRequest<{ items: ChatContact[] }>(
+    `/chat/contacts${query ? `?query=${encodeURIComponent(query)}` : ''}`,
+  ),
+  conversations: (archived = false) => apiRequest<ChatConversationList>(
+    `/chat/conversations${archived ? '?archived=true' : ''}`,
+  ),
+  createConversation: (payload: { kind: ChatConversationKind; memberIds: string[]; title?: string; description?: string }) =>
+    apiRequest<ChatConversation>('/chat/conversations', { method: 'POST', body: payload }),
+  conversation: (id: string) => apiRequest<ChatConversation>(`/chat/conversations/${id}`),
+  updateConversation: (id: string, payload: { title?: string; description?: string }) =>
+    apiRequest<ChatConversation>(`/chat/conversations/${id}`, { method: 'PATCH', body: payload }),
+  addMembers: (id: string, memberIds: string[]) =>
+    apiRequest<ChatConversation>(`/chat/conversations/${id}/members`, { method: 'POST', body: { memberIds } }),
+  removeMember: (id: string, userId: string) =>
+    apiRequest<{ ok: boolean }>(`/chat/conversations/${id}/members/${userId}`, { method: 'DELETE' }),
+  leave: (id: string) => apiRequest<{ ok: boolean }>(`/chat/conversations/${id}/leave`, { method: 'POST' }),
+  setState: (id: string, payload: { isMuted?: boolean; isPinned?: boolean; isArchived?: boolean }) =>
+    apiRequest<ChatConversation>(`/chat/conversations/${id}/state`, { method: 'PATCH', body: payload }),
+  markRead: (id: string, seq: number) =>
+    apiRequest<ChatConversation>(`/chat/conversations/${id}/read`, { method: 'POST', body: { seq } }),
+  setTyping: (id: string) =>
+    apiRequest<{ ok: boolean }>(`/chat/conversations/${id}/typing`, { method: 'POST' }),
+  clearHistory: (id: string) =>
+    apiRequest<{ ok: boolean }>(`/chat/conversations/${id}/clear`, { method: 'POST' }),
+  messages: (id: string, params: { beforeSeq?: number; afterSeq?: number; limit?: number } = {}) => {
+    const search = new URLSearchParams();
+    if (params.beforeSeq !== undefined) search.set('before_seq', String(params.beforeSeq));
+    if (params.afterSeq !== undefined) search.set('after_seq', String(params.afterSeq));
+    if (params.limit !== undefined) search.set('limit', String(params.limit));
+    const suffix = search.toString();
+    return apiRequest<ChatMessagePage>(`/chat/conversations/${id}/messages${suffix ? `?${suffix}` : ''}`);
+  },
+  send: (id: string, payload: ChatSendPayload) => apiRequest<ChatMessage>(
+    `/chat/conversations/${id}/messages`,
+    // Image uploads carry a base64 blob, so they need more headroom than a text send.
+    { method: 'POST', body: payload, timeoutMs: payload.attachment ? 45_000 : 12_000 },
+  ),
+  edit: (messageId: string, body: string) =>
+    apiRequest<ChatMessage>(`/chat/messages/${messageId}`, { method: 'PATCH', body: { body } }),
+  remove: (messageId: string) =>
+    apiRequest<ChatMessage>(`/chat/messages/${messageId}`, { method: 'DELETE' }),
+  react: (messageId: string, emoji: string) =>
+    apiRequest<ChatMessage>(`/chat/messages/${messageId}/reactions`, { method: 'POST', body: { emoji } }),
+  attachment: (attachmentId: string) =>
+    apiRequest<ChatAttachmentPayload>(`/chat/attachments/${attachmentId}`, { timeoutMs: 45_000 }),
+  sync: (cursor?: string | null) => apiRequest<ChatSyncResult>(
+    `/chat/sync${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`,
+  ),
+  search: (query: string) => apiRequest<{ items: ChatSearchHit[] }>(
+    `/chat/search?query=${encodeURIComponent(query)}`,
+  ),
 };

@@ -2,8 +2,8 @@ import { BlurView } from 'expo-blur';
 import { NavigationContainer, DefaultTheme, type LinkingOptions } from '@react-navigation/native';
 import { createBottomTabNavigator, type BottomTabNavigationOptions } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { BarChart3, Home, MoreHorizontal, ReceiptText, ShoppingBag } from 'lucide-react-native';
-import { Easing, StyleSheet, View } from 'react-native';
+import { BarChart3, Home, MessageCircle, MoreHorizontal, ReceiptText, ShoppingBag } from 'lucide-react-native';
+import { Easing, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DashboardScreen } from '../screens/DashboardScreen';
 import { POSScreen } from '../screens/POSScreen';
@@ -21,6 +21,11 @@ import { SettingsScreen } from '../screens/SettingsScreen';
 import { ProductManagementScreen } from '../screens/ProductManagementScreen';
 import { ProductEditorScreen } from '../screens/ProductEditorScreen';
 import { NotificationsScreen } from '../screens/NotificationsScreen';
+import { ChatListScreen } from '../screens/ChatListScreen';
+import { ChatRoomScreen } from '../screens/ChatRoomScreen';
+import { ChatInfoScreen } from '../screens/ChatInfoScreen';
+import { NewChatScreen } from '../screens/NewChatScreen';
+import { useChatStore } from '../store/chatStore';
 import { palette, radius, shadow, type } from '../theme/tokens';
 import { useReducedMotion } from '../utils/useReducedMotion';
 import { useResponsiveLayout } from '../utils/responsive';
@@ -49,7 +54,7 @@ const linking: LinkingOptions<RootStackParamList> = {
   config: {
     screens: {
       MainTabs: {
-        screens: { Home: 'home', POS: 'pos', Orders: 'orders', Reports: 'reports', More: 'more' },
+        screens: { Home: 'home', POS: 'pos', Orders: 'orders', Chat: 'chat', Reports: 'reports', More: 'more' },
       },
       Checkout: 'checkout',
       PaymentSuccess: 'payment/success/:transactionId',
@@ -60,6 +65,9 @@ const linking: LinkingOptions<RootStackParamList> = {
       ExpenseDetails: 'reports/expenses/:from/:to',
       Settings: 'settings',
       Notifications: 'notifications',
+      ChatRoom: 'chat/:conversationId',
+      ChatInfo: 'chat/:conversationId/info',
+      NewChat: 'chat/new',
     },
   },
 };
@@ -68,6 +76,7 @@ const icons = {
   Home,
   POS: ShoppingBag,
   Orders: ReceiptText,
+  Chat: MessageCircle,
   Reports: BarChart3,
   More: MoreHorizontal,
 };
@@ -76,6 +85,7 @@ const labels: Record<keyof MainTabParamList, string> = {
   Home: 'Beranda',
   POS: 'Kasir',
   Orders: 'Transaksi',
+  Chat: 'Obrolan',
   Reports: 'Laporan',
   More: 'Lainnya',
 };
@@ -114,6 +124,17 @@ const interpolateTabScene: NonNullable<BottomTabNavigationOptions['sceneStyleInt
   },
 });
 
+/** Unread count on the tab itself, so a new message is visible from anywhere in the app. */
+function ChatTabBadge() {
+  const totalUnread = useChatStore((state) => state.totalUnread);
+  if (!totalUnread) return null;
+  return (
+    <View style={styles.tabBadge}>
+      <Text style={styles.tabBadgeText}>{totalUnread > 99 ? '99+' : totalUnread}</Text>
+    </View>
+  );
+}
+
 function MainTabs() {
   const insets = useSafeAreaInsets();
   const { isLandscapePhone } = useResponsiveLayout();
@@ -135,7 +156,8 @@ function MainTabs() {
           tabBarHideOnKeyboard: true,
           tabBarIcon: ({ color, focused }) => (
             <View style={[styles.tabIcon, isLandscapePhone && styles.tabIconLandscape, focused && styles.tabIconActive]}>
-              <Icon color={focused ? palette.white : color} size={focused ? 20 : 21} strokeWidth={focused ? 2.3 : 1.9} />
+              <Icon color={focused ? palette.white : color} size={focused ? 19 : 20} strokeWidth={focused ? 2.3 : 1.9} />
+              {route.name === 'Chat' ? <ChatTabBadge /> : null}
             </View>
           ),
           tabBarLabel: labels[route.name],
@@ -160,6 +182,9 @@ function MainTabs() {
       </Tab.Screen>
       <Tab.Screen name="Orders">
         {({ navigation }) => <SwipeableTabScene activeRoute="Orders" navigation={navigation}><OrdersScreen /></SwipeableTabScene>}
+      </Tab.Screen>
+      <Tab.Screen name="Chat">
+        {({ navigation }) => <SwipeableTabScene activeRoute="Chat" navigation={navigation}><ChatListScreen /></SwipeableTabScene>}
       </Tab.Screen>
       <Tab.Screen name="Reports">
         {({ navigation }) => <SwipeableTabScene activeRoute="Reports" navigation={navigation}><ReportsScreen /></SwipeableTabScene>}
@@ -192,6 +217,9 @@ export function AppNavigator() {
         <Stack.Screen component={ProductManagementScreen} name="Products" />
         <Stack.Screen component={ProductEditorScreen} name="ProductEditor" />
         <Stack.Screen component={NotificationsScreen} name="Notifications" />
+        <Stack.Screen component={ChatRoomScreen} name="ChatRoom" options={{ gestureEnabled: true }} />
+        <Stack.Screen component={ChatInfoScreen} name="ChatInfo" />
+        <Stack.Screen component={NewChatScreen} name="NewChat" options={{ animation: 'slide_from_bottom' }} />
       </Stack.Navigator>
     </NavigationContainer>
   );
@@ -215,9 +243,24 @@ const styles = StyleSheet.create({
     ...shadow.floating,
   },
   tabBarLandscape: { height: 58, paddingTop: 3, paddingBottom: 4, borderRadius: radius.lg },
-  tabIcon: { width: 35, height: 30, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
-  tabIconLandscape: { width: 32, height: 26, borderRadius: 11 },
+  tabIcon: { width: 32, height: 30, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  tabIconLandscape: { width: 30, height: 26, borderRadius: 11 },
+  tabBadge: {
+    position: 'absolute',
+    top: -3,
+    right: -6,
+    minWidth: 17,
+    height: 17,
+    paddingHorizontal: 4,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: palette.rose,
+    borderWidth: 1.5,
+    borderColor: palette.white,
+  },
+  tabBadgeText: { color: palette.white, fontFamily: type.bold, fontSize: 9.5, lineHeight: 12 },
   tabIconActive: { backgroundColor: palette.cocoaDark },
-  tabLabel: { fontFamily: type.bold, fontSize: 9, marginTop: 2 },
+  tabLabel: { fontFamily: type.bold, fontSize: 8.5, marginTop: 2 },
   tabLabelLandscape: { fontSize: 8, marginTop: 0 },
 });
