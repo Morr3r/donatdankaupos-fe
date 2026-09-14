@@ -3,7 +3,7 @@ import type { NavigatorScreenParams } from '@react-navigation/native';
 export type MainTabParamList = {
   Home: undefined;
   POS: undefined;
-  Orders: undefined;
+  Orders: { status?: 'pending'; focusToken?: number } | undefined;
   Reports: undefined;
   More: undefined;
 };

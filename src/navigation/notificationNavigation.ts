@@ -18,6 +18,14 @@ export function navigateFromNotificationData(data: Record<string, unknown>) {
     navigationRef.navigate('Inventory');
     return;
   }
+  if (route === 'unpaid_orders') {
+    // focusToken forces the params to change so a repeat tap re-applies the filter.
+    navigationRef.navigate('MainTabs', {
+      screen: 'Orders',
+      params: { status: 'pending', focusToken: Date.now() },
+    });
+    return;
+  }
   navigationRef.navigate('Notifications');
 }
 

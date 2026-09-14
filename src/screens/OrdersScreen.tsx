@@ -1,12 +1,12 @@
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { type RouteProp, useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ArrowUpRight, ReceiptText, RefreshCw, Search } from 'lucide-react-native';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, StyleSheet, Text, View } from 'react-native';
 import { saleService } from '../api/services';
 import { DateRangePicker } from '../components/date-range-picker';
 import { Button, Chip, GlassCard, Header, ScalePressable, Screen, SearchField, StatusPill } from '../components/ui';
-import type { RootStackParamList } from '../navigation/types';
+import type { MainTabParamList, RootStackParamList } from '../navigation/types';
 import { palette, radius, spacing, type } from '../theme/tokens';
 import type { Transaction, TransactionStatus } from '../types/domain';
 import { type DateRangeSelection, makeDateRange, toSalesQuery } from '../utils/date';
@@ -23,14 +23,21 @@ const filters: { id: Filter; label: string }[] = [
 
 export function OrdersScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const { params } = useRoute<RouteProp<MainTabParamList, 'Orders'>>();
   const { isLandscapePhone, width } = useResponsiveLayout();
   const isWide = width >= 960;
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<Filter>('all');
+  const [filter, setFilter] = useState<Filter>(params?.status ?? 'all');
   const [search, setSearch] = useState('');
   const [range, setRange] = useState<DateRangeSelection>(() => makeDateRange('day'));
+  const requestedStatus = params?.status;
+  const focusToken = params?.focusToken;
+  // Re-applied on every tap of the "tagihan belum lunas" push, not just the first.
+  useEffect(() => {
+    if (requestedStatus) setFilter(requestedStatus);
+  }, [requestedStatus, focusToken]);
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
     return transactions.filter((transaction) => {
