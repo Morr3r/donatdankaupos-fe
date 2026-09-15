@@ -1,7 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { Banknote, CalendarDays, CircleDollarSign, Clock3, Landmark, LogOut, Store } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, BackHandler, Platform, StyleSheet, Text, View } from 'react-native';
 import { BrandLogo, Button, Field, GlassCard, Screen, StatusPill } from '../components/ui';
 import { TERMINAL_ID } from '../api/client';
 import { shiftService } from '../api/services';
@@ -11,7 +11,12 @@ import { useSessionStore } from '../store/sessionStore';
 import { formatJakartaBusinessDate } from '../utils/date';
 import { formatCurrency, formatNumericInput, parseNumericInput } from '../utils/format';
 
-export function OpenShiftScreen() {
+interface OpenShiftScreenProps {
+  /** True when this gate is layered over a mounted navigator, so back must stop here. */
+  blocksHardwareBack?: boolean;
+}
+
+export function OpenShiftScreen({ blocksHardwareBack = false }: OpenShiftScreenProps = {}) {
   const [openingPhysicalCash, setOpeningPhysicalCash] = useState('');
   const [openingBankBalance, setOpeningBankBalance] = useState('');
   const [accumulatedBalances, setAccumulatedBalances] = useState<{ cash: number; bank: number } | null>(null);
@@ -27,6 +32,15 @@ export function OpenShiftScreen() {
   const openShift = useOperationsStore((state) => state.openShift);
   const refreshShift = useOperationsStore((state) => state.refreshShift);
   const hasOpeningBalances = openingPhysicalCash.trim().length > 0 && openingBankBalance.trim().length > 0;
+
+  // Layered over a live navigator this gate must swallow the hardware back press: letting it
+  // through would either drive the hidden screen underneath or, with no handler left to claim
+  // it, close the app outright.
+  useEffect(() => {
+    if (!blocksHardwareBack || Platform.OS !== 'android') return undefined;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => true);
+    return () => subscription.remove();
+  }, [blocksHardwareBack]);
 
   useEffect(() => {
     let active = true;

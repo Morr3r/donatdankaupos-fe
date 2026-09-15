@@ -84,12 +84,38 @@ export default function App() {
   const ready = fontsLoaded && status !== 'bootstrapping' && (status !== 'authenticated' || operationsHydrated);
   const finishIntro = useCallback(() => setIntroComplete(true), []);
 
+  // AppNavigator owns the NavigationContainer, and with it every Android back handler in the
+  // app. Swapping it out for the shift gate mid-session therefore destroys the navigation
+  // history *and* leaves the hardware back button with nothing to handle it, so Android closes
+  // the app instead of returning to the previous screen. Once the navigator is up it stays
+  // mounted for the rest of the session and the gate is layered above it instead.
+  const [navigatorMounted, setNavigatorMounted] = useState(false);
+  useEffect(() => {
+    if (status !== 'authenticated') {
+      setNavigatorMounted(false);
+      return;
+    }
+    if (dailyShiftId) setNavigatorMounted(true);
+  }, [dailyShiftId, status]);
+
+  const showNavigator = Boolean(dailyShiftId) || navigatorMounted;
+  const showShiftGate = status === 'authenticated' && !dailyShiftId;
+
   const appContent = ready
     ? status === 'unauthenticated'
       ? <LoginScreen />
-      : !dailyShiftId
-        ? <OpenShiftScreen />
-        : <AppNavigator />
+      : (
+        <>
+          {showNavigator ? <AppNavigator /> : null}
+          {showShiftGate ? (
+            <View style={showNavigator ? styles.gateOverlay : styles.appContent}>
+              {/* While the gate covers a live navigator, back must stop here rather than fall
+                  through to the screen underneath it. */}
+              <OpenShiftScreen blocksHardwareBack={showNavigator} />
+            </View>
+          ) : null}
+        </>
+      )
     : <View style={styles.loadingCanvas} />;
 
   return (
@@ -115,5 +141,15 @@ export default function App() {
 const styles = StyleSheet.create({
   appShell: { flex: 1, backgroundColor: '#FFF9F2' },
   appContent: { flex: 1 },
+  gateOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#FFF9F2',
+    zIndex: 5,
+    elevation: 5,
+  },
   loadingCanvas: { flex: 1, backgroundColor: '#140D0A' },
 });

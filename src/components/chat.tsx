@@ -36,7 +36,7 @@ import {
 } from 'react-native';
 import { palette, radius, shadow, spacing, type } from '../theme/tokens';
 import type { ChatConversation, ChatMessage } from '../types/domain';
-import { profileImageSource } from '../api/client';
+import { loadProfileImage } from '../api/client';
 import { formatCurrency } from '../utils/format';
 import { useChatStore } from '../store/chatStore';
 import { useReducedMotion } from '../utils/useReducedMotion';
@@ -125,10 +125,30 @@ export function ChatAvatar({
   imageUri,
 }: AvatarProps) {
   const [imageFailed, setImageFailed] = useState(false);
-  const remoteSource = profileImageSource(userId, avatarUpdatedAt);
-  const imageSource = imageUri ? { uri: imageUri } : remoteSource;
+  const [remoteImageUri, setRemoteImageUri] = useState<string | null>(null);
 
-  useEffect(() => setImageFailed(false), [avatarUpdatedAt, imageUri, userId]);
+  useEffect(() => {
+    let active = true;
+    setImageFailed(false);
+
+    if (imageUri || !userId || !avatarUpdatedAt) {
+      setRemoteImageUri(null);
+      return () => { active = false; };
+    }
+
+    setRemoteImageUri(null);
+    void loadProfileImage(userId, avatarUpdatedAt)
+      .then((uri) => {
+        if (active) setRemoteImageUri(uri);
+      })
+      .catch(() => {
+        if (active) setImageFailed(true);
+      });
+
+    return () => { active = false; };
+  }, [avatarUpdatedAt, imageUri, userId]);
+
+  const imageSource = imageUri ? { uri: imageUri } : remoteImageUri ? { uri: remoteImageUri } : undefined;
 
   return (
     <View style={{ width: size, height: size }}>

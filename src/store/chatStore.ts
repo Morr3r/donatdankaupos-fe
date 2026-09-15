@@ -290,19 +290,55 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   openConversation: async (conversationId) => {
-    set({ activeConversationId: conversationId, isLoadingMessages: true });
+    set({ activeConversationId: conversationId, isLoadingMessages: true, error: null });
     try {
-      const page = await chatService.messages(conversationId, { limit: 40 });
+      // A room can be the first route after a deep link or push notification, so the
+      // conversation list/cache is not guaranteed to contain its identity yet. Always
+      // refresh the room metadata together with its messages to keep the display name,
+      // role, avatar, presence, and member receipts current.
+      // Settle the two calls independently. They answer different questions - who this room is
+      // versus what was said in it - so letting one failure reject the pair would blank out the
+      // header identity over a missing message page, or vice versa.
+      const [identity, history] = await Promise.allSettled([
+        chatService.conversation(conversationId),
+        chatService.messages(conversationId, { limit: 40 }),
+      ]);
+      const conversation = identity.status === 'fulfilled' ? identity.value : null;
+      const page = history.status === 'fulfilled' ? history.value : null;
+
+      if (!conversation && !page) {
+        // Reaching here means the identity call rejected; its reason is the useful one.
+        throw identity.status === 'rejected' ? identity.reason : new Error('Pesan belum dapat dimuat.');
+      }
+
       set((state) => ({
-        messagesByConversation: {
-          ...state.messagesByConversation,
-          [conversationId]: mergeMessages(state.messagesByConversation[conversationId] ?? [], page.items),
-        },
-        hasMoreByConversation: { ...state.hasMoreByConversation, [conversationId]: page.hasMoreBefore },
+        conversations: conversation
+          ? upsertConversations(state.conversations, [
+            {
+              ...conversation,
+              // The detail endpoint intentionally omits the hydrated preview. Preserve the
+              // list preview while replacing every identity/presence field with fresh data.
+              lastMessage:
+                conversation.lastMessage ??
+                state.conversations.find((item) => item.id === conversationId)?.lastMessage ??
+                null,
+            },
+          ])
+          : state.conversations,
+        messagesByConversation: page
+          ? {
+            ...state.messagesByConversation,
+            [conversationId]: mergeMessages(state.messagesByConversation[conversationId] ?? [], page.items),
+          }
+          : state.messagesByConversation,
+        hasMoreByConversation: page
+          ? { ...state.hasMoreByConversation, [conversationId]: page.hasMoreBefore }
+          : state.hasMoreByConversation,
         isLoadingMessages: false,
+        error: conversation && page ? null : 'Sebagian isi obrolan belum dapat dimuat.',
       }));
       schedulePersist();
-      await get().markRead(conversationId);
+      if (conversation) await get().markRead(conversationId, conversation.lastSeq);
     } catch (error) {
       set({
         isLoadingMessages: false,

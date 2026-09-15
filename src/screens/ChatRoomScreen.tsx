@@ -180,7 +180,6 @@ export function ChatRoomScreen() {
   const [isForwarding, setIsForwarding] = useState(false);
   const [readInfoTarget, setReadInfoTarget] = useState<ChatMessage | null>(null);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
-  const keyboardVisibleRef = useRef(false);
 
   useLayoutEffect(() => {
     navigation.setOptions({ headerShown: false });
@@ -254,12 +253,10 @@ export function ChatRoomScreen() {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
     const showSubscription = Keyboard.addListener(showEvent, () => {
-      keyboardVisibleRef.current = true;
       setIsKeyboardVisible(true);
       if (pinnedToBottom.current) scrollToEnd(false);
     });
     const hideSubscription = Keyboard.addListener(hideEvent, () => {
-      keyboardVisibleRef.current = false;
       setIsKeyboardVisible(false);
     });
     return () => {
@@ -543,11 +540,14 @@ export function ChatRoomScreen() {
     ? receiptMembers.filter((member) => member.lastReadSeq >= actionTarget.seq).length
     : 0;
 
+  const returnToChatList = useCallback(() => {
+    Keyboard.dismiss();
+    // popTo preserves the existing tab state when MainTabs is in the stack and safely
+    // replaces this route when the room was opened as a deep-link/push root.
+    navigation.popTo('MainTabs', { screen: 'Chat' });
+  }, [navigation]);
+
   const handleBack = useCallback((): boolean => {
-    if (keyboardVisibleRef.current) {
-      Keyboard.dismiss();
-      return true;
-    }
     if (actionTarget) {
       setActionTarget(null);
       return true;
@@ -581,8 +581,7 @@ export function ChatRoomScreen() {
       if (!isForwarding) setForwardTarget(null);
       return true;
     }
-    if (navigation.canGoBack()) navigation.goBack();
-    else navigation.reset({ index: 0, routes: [{ name: 'MainTabs', params: { screen: 'Chat' } }] });
+    returnToChatList();
     return true;
   }, [
     actionTarget,
@@ -592,9 +591,9 @@ export function ChatRoomScreen() {
     handleCancelRecording,
     isForwarding,
     isRecording,
-    navigation,
     readInfoTarget,
     replyingTo,
+    returnToChatList,
     transactionPickerVisible,
   ]);
 
