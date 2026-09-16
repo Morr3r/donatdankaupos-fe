@@ -4,14 +4,14 @@ import { useEffect, useRef, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import { Banknote, Clock3, Printer, RotateCcw, Share2, ShieldAlert } from 'lucide-react-native';
 import ViewShot, { type ViewShotRef } from 'react-native-view-shot';
-import { saleService } from '../api/services';
+import { chatService, saleService } from '../api/services';
 import { BcaTransferDetails } from '../components/bca-transfer-details';
 import { Button, Chip, Divider, Field, FormModal, GlassCard, Header, Screen, SectionHeader, StatusPill } from '../components/ui';
 import type { RootStackParamList } from '../navigation/types';
 import { useOperationsStore } from '../store/operationsStore';
 import { useSessionStore } from '../store/sessionStore';
 import { palette, radius, spacing, type } from '../theme/tokens';
-import type { PaymentMethod } from '../types/domain';
+import type { ChatTransactionReceipt, PaymentMethod, Transaction } from '../types/domain';
 import { selectedOptionSummary } from '../utils/cartOptions';
 import { formatCurrency, formatDateTime, formatNumericInput, getPaymentLabel, orderTypeLabels, parseNumericInput, paymentLabels, pricingModeLabels } from '../utils/format';
 import { shareInvoiceImage } from '../utils/share-invoice';
@@ -21,8 +21,20 @@ type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetail'>;
 
 const settlementMethods: PaymentMethod[] = ['cash', 'qris', 'card', 'transfer'];
 
+const receiptAsTransaction = (receipt: ChatTransactionReceipt): Transaction => ({
+  ...receipt,
+  costPerItem: 0,
+  costOfGoodsSold: 0,
+  netProfit: 0,
+  netMarginPercent: null,
+});
+
 export function OrderDetailScreen({ navigation, route }: Props) {
-  const cachedTransaction = useOperationsStore((state) => state.transactions.find((item) => item.id === route.params.transactionId));
+  const chatMessageId = route.params.chatMessageId;
+  const isChatReceipt = Boolean(chatMessageId);
+  const cachedTransaction = useOperationsStore((state) =>
+    chatMessageId ? undefined : state.transactions.find((item) => item.id === route.params.transactionId),
+  );
   const refund = useOperationsStore((state) => state.refundTransaction);
   const settle = useOperationsStore((state) => state.settleTransaction);
   const shift = useOperationsStore((state) => state.shift);
@@ -51,12 +63,17 @@ export function OrderDetailScreen({ navigation, route }: Props) {
       setLoadedTransaction(cachedTransaction);
       return;
     }
-    saleService.get(route.params.transactionId)
+    setLoadError(null);
+    setLoadedTransaction(undefined);
+    const request = chatMessageId
+      ? chatService.transaction(chatMessageId).then(receiptAsTransaction)
+      : saleService.get(route.params.transactionId);
+    request
       .then(setLoadedTransaction)
       .catch((error) => setLoadError(error instanceof Error ? error.message : 'Transaksi tidak ditemukan.'));
-  }, [cachedTransaction, route.params.transactionId]);
+  }, [cachedTransaction, chatMessageId, route.params.transactionId]);
 
-  if (!transaction) return <Screen><Header onBack={navigation.goBack} title="Detail transaksi" /><Text style={styles.notFound}>{loadError ?? 'Memuat transaksi…'}</Text></Screen>;
+  if (!transaction) return <Screen><Header onBack={navigation.goBack} title={isChatReceipt ? 'Struk transaksi' : 'Detail transaksi'} /><Text style={styles.notFound}>{loadError ?? 'Memuat transaksi…'}</Text></Screen>;
 
   const safeReceiptNo = transaction.receiptNo.replace(/[^a-zA-Z0-9_-]/g, '-');
 
@@ -130,7 +147,7 @@ export function OrderDetailScreen({ navigation, route }: Props) {
 
   return (
     <Screen bottomInset={spacing.xl}>
-      <Header onBack={navigation.goBack} subtitle={formatDateTime(transaction.createdAt)} title="Detail transaksi" />
+      <Header onBack={navigation.goBack} subtitle={formatDateTime(transaction.createdAt)} title={isChatReceipt ? 'Struk transaksi' : 'Detail transaksi'} />
       <ViewShot
         ref={invoiceRef}
         options={{
@@ -186,18 +203,22 @@ export function OrderDetailScreen({ navigation, route }: Props) {
       ) : null}
       </ViewShot>
 
-      <SectionHeader title="Profit transaksi" />
-      <GlassCard contentStyle={styles.profitCard}>
-        <InfoRow label="Jumlah donat" value={`${transaction.pieceCount} pcs`} />
-        <InfoRow label="HPP per pcs" value={formatCurrency(transaction.costPerItem)} />
-        <InfoRow label="Total HPP" value={formatCurrency(transaction.costOfGoodsSold)} />
-        <Divider />
-        <View style={styles.profitRow}><Text style={styles.profitLabel}>Laba bersih</Text><Text style={[styles.profitValue, transaction.netProfit < 0 && styles.profitNegative]}>{formatCurrency(transaction.netProfit)}</Text></View>
-        <Text style={styles.profitHelper}>{transaction.status === 'pending' ? 'Belum masuk pendapatan atau profit sampai transaksi dilunasi.' : transaction.status === 'refunded' ? 'Transaksi refund tidak masuk profit.' : `Laba bersih = total transaksi − HPP ${transaction.pieceCount} pcs donat${transaction.netMarginPercent === null ? '.' : ` · margin ${transaction.netMarginPercent}%.`}`}</Text>
-      </GlassCard>
+      {!isChatReceipt ? (
+        <>
+          <SectionHeader title="Profit transaksi" />
+          <GlassCard contentStyle={styles.profitCard}>
+            <InfoRow label="Jumlah donat" value={`${transaction.pieceCount} pcs`} />
+            <InfoRow label="HPP per pcs" value={formatCurrency(transaction.costPerItem)} />
+            <InfoRow label="Total HPP" value={formatCurrency(transaction.costOfGoodsSold)} />
+            <Divider />
+            <View style={styles.profitRow}><Text style={styles.profitLabel}>Laba bersih</Text><Text style={[styles.profitValue, transaction.netProfit < 0 && styles.profitNegative]}>{formatCurrency(transaction.netProfit)}</Text></View>
+            <Text style={styles.profitHelper}>{transaction.status === 'pending' ? 'Belum masuk pendapatan atau profit sampai transaksi dilunasi.' : transaction.status === 'refunded' ? 'Transaksi refund tidak masuk profit.' : `Laba bersih = total transaksi − HPP ${transaction.pieceCount} pcs donat${transaction.netMarginPercent === null ? '.' : ` · margin ${transaction.netMarginPercent}%.`}`}</Text>
+          </GlassCard>
+        </>
+      ) : null}
 
       <View style={styles.actions}>
-        {transaction.status === 'pending' ? <Button icon={Banknote} label="Lunasi transaksi" onPress={() => { setSettlementOpen(true); setSettlementError(null); setSettlementFeedback(null); }} /> : null}
+        {!isChatReceipt && transaction.status === 'pending' ? <Button icon={Banknote} label="Lunasi transaksi" onPress={() => { setSettlementOpen(true); setSettlementError(null); setSettlementFeedback(null); }} /> : null}
         {settlementFeedback ? <Text accessibilityLiveRegion="polite" style={[styles.shareFeedback, styles.shareFeedbackSuccess]}>{settlementFeedback}</Text> : null}
         <Button icon={Printer} label="Cetak invoice (2 salinan)" loading={printingInvoice} onPress={printInvoice} variant="secondary" />
         {printFeedback ? (
@@ -209,7 +230,7 @@ export function OrderDetailScreen({ navigation, route }: Props) {
           </Text>
         ) : null}
         <Button icon={Share2} label="Bagikan invoice (JPG)" loading={sharingInvoice} onPress={shareInvoice} variant="secondary" />
-        {transaction.status === 'paid' ? <Button icon={RotateCcw} label="Refund transaksi" onPress={() => { setRefundOpen(true); setRefundError(null); }} variant="danger" /> : null}
+        {!isChatReceipt && transaction.status === 'paid' ? <Button icon={RotateCcw} label="Refund transaksi" onPress={() => { setRefundOpen(true); setRefundError(null); }} variant="danger" /> : null}
         {shareFeedback ? (
           <Text
             accessibilityLiveRegion="polite"
@@ -219,7 +240,7 @@ export function OrderDetailScreen({ navigation, route }: Props) {
           </Text>
         ) : null}
       </View>
-      <View style={styles.securityNote}><ShieldAlert color={palette.honey} size={17} /><Text style={styles.securityText}>{transaction.status === 'pending' ? 'Pendapatan akan dicatat pada hari dan shift saat tombol pelunasan dikonfirmasi.' : 'Semua refund wajib memiliki alasan audit; kasir juga memerlukan PIN manager.'}</Text></View>
+      {!isChatReceipt ? <View style={styles.securityNote}><ShieldAlert color={palette.honey} size={17} /><Text style={styles.securityText}>{transaction.status === 'pending' ? 'Pendapatan akan dicatat pada hari dan shift saat tombol pelunasan dikonfirmasi.' : 'Semua refund wajib memiliki alasan audit; kasir juga memerlukan PIN manager.'}</Text></View> : null}
 
       <FormModal
         footer={<View style={styles.modalActions}><Button compact label="Batal" onPress={() => setSettlementOpen(false)} variant="secondary" /><Button compact icon={Banknote} label="Konfirmasi lunas" loading={settling} onPress={handleSettlement} /></View>}

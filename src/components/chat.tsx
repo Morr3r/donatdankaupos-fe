@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
+import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import {
   BellOff,
   Check,
@@ -35,7 +35,7 @@ import {
   View,
 } from 'react-native';
 import { palette, radius, shadow, spacing, type } from '../theme/tokens';
-import type { ChatConversation, ChatMessage } from '../types/domain';
+import type { ChatConversation, ChatMessage, TransactionStatus } from '../types/domain';
 import { loadProfileImage } from '../api/client';
 import { formatCurrency } from '../utils/format';
 import { useChatStore } from '../store/chatStore';
@@ -284,14 +284,16 @@ function VoiceNotePlayer({ message, tone }: { message: ChatMessage; tone: 'mine'
     message.attachment ? state.attachmentCache[message.attachment.id] : undefined,
   );
   const attachmentId = message.attachment?.id;
-  const source = message.localAudioUri ?? cached ?? null;
+  // Once the upload completes, prefer the server-backed data URI. Recorder cache files can
+  // remain locked briefly on Android, which made a freshly sent VN playable only after relog.
+  const source = cached ?? message.localAudioUri ?? null;
   const player = useAudioPlayer(source ? { uri: source } : null, { updateInterval: 120 });
   const status = useAudioPlayerStatus(player);
 
   useEffect(() => {
-    if (!attachmentId || cached || message.localAudioUri) return;
+    if (!attachmentId || cached) return;
     void loadAttachment(attachmentId);
-  }, [attachmentId, cached, loadAttachment, message.localAudioUri]);
+  }, [attachmentId, cached, loadAttachment]);
 
   const duration = status.duration || (message.attachment?.durationMs ?? 0) / 1000;
   const progress = duration > 0 ? Math.min(1, status.currentTime / duration) : 0;
@@ -301,10 +303,19 @@ function VoiceNotePlayer({ message, tone }: { message: ChatMessage; tone: 'mine'
       player.pause();
       return;
     }
-    if (status.didJustFinish || (duration > 0 && status.currentTime >= duration - 0.15)) {
-      await player.seekTo(0);
+    await setAudioModeAsync({
+      allowsRecording: false,
+      playsInSilentMode: true,
+      shouldRouteThroughEarpiece: false,
+    }).catch(() => undefined);
+    try {
+      if (status.didJustFinish || (duration > 0 && status.currentTime >= duration - 0.15)) {
+        await player.seekTo(0);
+      }
+      player.play();
+    } catch {
+      // A later tap retries playback without requiring an application restart.
     }
-    player.play();
   };
 
   return (
@@ -344,6 +355,12 @@ function VoiceNotePlayer({ message, tone }: { message: ChatMessage; tone: 'mine'
   );
 }
 
+const transactionStatusLabel = (status: TransactionStatus): string => {
+  if (status === 'pending') return 'Bayar nanti';
+  if (status === 'refunded') return 'Refund';
+  return 'Lunas';
+};
+
 function TransactionCard({ message, isMine }: { message: ChatMessage; isMine: boolean }) {
   const transaction = message.transaction;
   if (!transaction) return null;
@@ -369,8 +386,17 @@ function TransactionCard({ message, isMine }: { message: ChatMessage; isMine: bo
         <Text style={[styles.transactionAmount, isMine && styles.transactionTextMine]}>
           {formatCurrency(transaction.total)}
         </Text>
-        <Text style={[styles.transactionStatus, transaction.status === 'refunded' && styles.transactionRefunded]}>
-          {transaction.status === 'refunded' ? 'Refund' : 'Selesai'}
+        <Text
+          style={[
+            styles.transactionStatus,
+            isMine && styles.transactionStatusMine,
+            transaction.status === 'pending' && styles.transactionPending,
+            transaction.status === 'pending' && isMine && styles.transactionPendingMine,
+            transaction.status === 'refunded' && styles.transactionRefunded,
+            transaction.status === 'refunded' && isMine && styles.transactionRefundedMine,
+          ]}
+        >
+          {transactionStatusLabel(transaction.status)}
         </Text>
       </View>
     </View>
@@ -386,6 +412,7 @@ interface BubbleProps {
   onReply: (message: ChatMessage) => void;
   onRetry: (message: ChatMessage) => void;
   onReact: (message: ChatMessage, emoji: string) => void;
+  onOpenTransaction: (message: ChatMessage) => void;
 }
 
 export const MessageBubble = memo(function MessageBubble({
@@ -397,6 +424,7 @@ export const MessageBubble = memo(function MessageBubble({
   onReply,
   onRetry,
   onReact,
+  onOpenTransaction,
 }: BubbleProps) {
   const reducedMotion = useReducedMotion();
   const translateX = useRef(new Animated.Value(0)).current;
@@ -452,7 +480,11 @@ export const MessageBubble = memo(function MessageBubble({
           <Reply color={palette.muted} size={15} strokeWidth={2.2} />
         </View>
         <Pressable
-          accessibilityHint="Tekan lama untuk membuka aksi dan info pesan"
+          accessibilityHint={
+            message.kind === 'transaction' && !message.outboxStatus
+              ? 'Ketuk untuk membuka detail dan struk transaksi. Tekan lama untuk membuka aksi pesan.'
+              : 'Tekan lama untuk membuka aksi dan info pesan'
+          }
           accessibilityLabel={`${message.senderName}: ${isDeleted ? 'Pesan dihapus' : previewText(message)}`}
           accessibilityRole="button"
           delayLongPress={260}
@@ -461,7 +493,13 @@ export const MessageBubble = memo(function MessageBubble({
             void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
             onLongPress(message);
           }}
-          onPress={failed ? () => onRetry(message) : undefined}
+          onPress={
+            failed
+              ? () => onRetry(message)
+              : message.kind === 'transaction' && !message.outboxStatus
+                ? () => onOpenTransaction(message)
+                : undefined
+          }
           style={({ pressed }) => [
             styles.bubble,
             isMine ? styles.bubbleMine : styles.bubbleTheirs,
@@ -1041,8 +1079,12 @@ const styles = StyleSheet.create({
   transactionMetaMine: { color: 'rgba(255,255,255,0.72)' },
   transactionAmountCopy: { alignItems: 'flex-end', gap: 2 },
   transactionAmount: { color: palette.cocoa, fontFamily: type.bold, fontSize: 11.5 },
-  transactionStatus: { color: palette.success, fontFamily: type.semibold, fontSize: 9.5 },
-  transactionRefunded: { color: palette.roseSoft },
+  transactionStatus: { color: palette.success, fontFamily: type.semibold, fontSize: 10.5 },
+  transactionStatusMine: { color: palette.successSoft },
+  transactionPending: { color: palette.cocoa },
+  transactionPendingMine: { color: palette.champagneSoft },
+  transactionRefunded: { color: palette.danger },
+  transactionRefundedMine: { color: palette.roseSoft },
 
   reactionTray: { flexDirection: 'row', gap: 4, marginTop: -7, marginBottom: 5, zIndex: 2 },
   reactionTrayMine: { marginRight: 6 },

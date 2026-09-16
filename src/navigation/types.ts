@@ -13,7 +13,7 @@ export type RootStackParamList = {
   MainTabs: NavigatorScreenParams<MainTabParamList> | undefined;
   Checkout: undefined;
   PaymentSuccess: { transactionId: string };
-  OrderDetail: { transactionId: string };
+  OrderDetail: { transactionId: string; chatMessageId?: string };
   Inventory: undefined;
   Shift: undefined;
   Expenses: undefined;

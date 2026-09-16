@@ -13,6 +13,12 @@ interface TransactionPickerProps {
   onSelect: (transaction: Transaction) => void;
 }
 
+const transactionStatusLabel = (status: Transaction['status']): string => {
+  if (status === 'pending') return 'Bayar nanti';
+  if (status === 'refunded') return 'Refund';
+  return 'Lunas';
+};
+
 export function TransactionPicker({ visible, onClose, onSelect }: TransactionPickerProps) {
   const [items, setItems] = useState<Transaction[]>([]);
   const [query, setQuery] = useState('');
@@ -25,7 +31,7 @@ export function TransactionPicker({ visible, onClose, onSelect }: TransactionPic
     setError(null);
     void saleService
       .list('limit=200')
-      .then((rows) => setItems(rows.filter((item) => item.status !== 'pending')))
+      .then(setItems)
       .catch((reason: unknown) =>
         setError(reason instanceof Error ? reason.message : 'Transaksi belum dapat dimuat.'),
       )
@@ -43,7 +49,7 @@ export function TransactionPicker({ visible, onClose, onSelect }: TransactionPic
   return (
     <FormModal
       onClose={onClose}
-      subtitle="Pilih transaksi selesai untuk dibagikan sebagai kartu yang bisa dibalas atau diteruskan."
+      subtitle="Pilih transaksi lunas, bayar nanti, atau refund untuk dibagikan sebagai kartu."
       title="Bagikan transaksi"
       visible={visible}
     >
@@ -61,12 +67,12 @@ export function TransactionPicker({ visible, onClose, onSelect }: TransactionPic
       {loading ? <ActivityIndicator color={palette.cocoa} style={styles.loader} /> : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {!loading && !error && !filtered.length ? (
-        <Text style={styles.empty}>Belum ada transaksi selesai yang cocok.</Text>
+        <Text style={styles.empty}>Belum ada transaksi yang cocok.</Text>
       ) : null}
       <View style={styles.list}>
         {filtered.map((transaction) => (
           <ScalePressable
-            accessibilityLabel={`Bagikan transaksi ${transaction.receiptNo}, ${formatCurrency(transaction.total)}`}
+            accessibilityLabel={`Bagikan transaksi ${transaction.receiptNo}, ${formatCurrency(transaction.total)}, ${transactionStatusLabel(transaction.status)}`}
             key={transaction.id}
             onPress={() => onSelect(transaction)}
             style={styles.row}
@@ -82,8 +88,14 @@ export function TransactionPicker({ visible, onClose, onSelect }: TransactionPic
             </View>
             <View style={styles.amountCopy}>
               <Text style={styles.amount}>{formatCurrency(transaction.total)}</Text>
-              <Text style={[styles.status, transaction.status === 'refunded' && styles.statusRefunded]}>
-                {transaction.status === 'refunded' ? 'Refund' : 'Selesai'}
+              <Text
+                style={[
+                  styles.status,
+                  transaction.status === 'pending' && styles.statusPending,
+                  transaction.status === 'refunded' && styles.statusRefunded,
+                ]}
+              >
+                {transactionStatusLabel(transaction.status)}
               </Text>
             </View>
           </ScalePressable>
@@ -218,6 +230,7 @@ const styles = StyleSheet.create({
   amountCopy: { alignItems: 'flex-end', gap: 2 },
   amount: { color: palette.cocoa, fontFamily: type.bold, fontSize: 12.5 },
   status: { color: palette.success, fontFamily: type.semibold, fontSize: 10.5 },
+  statusPending: { color: palette.cocoa },
   statusRefunded: { color: palette.danger },
   check: {
     width: 24,

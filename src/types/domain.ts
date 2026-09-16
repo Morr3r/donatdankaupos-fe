@@ -221,6 +221,11 @@ export interface Transaction {
   syncStatus: 'synced';
 }
 
+export type ChatTransactionReceipt = Omit<
+  Transaction,
+  'costPerItem' | 'costOfGoodsSold' | 'netProfit' | 'netMarginPercent'
+>;
+
 export interface LoginPayload {
   email: string;
   password: string;
@@ -339,7 +344,7 @@ export interface ChatTransactionSummary {
   itemCount: number;
   pieceCount: number;
   total: number;
-  status: 'paid' | 'refunded';
+  status: TransactionStatus;
   paymentMethod: PaymentMethod | null;
   orderType: OrderType;
 }

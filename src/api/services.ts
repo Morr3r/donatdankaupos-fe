@@ -24,6 +24,7 @@ import type {
   ChatSyncResult,
   ChatSearchHit,
   ChatAttachmentPayload,
+  ChatTransactionReceipt,
   ProfileUpdatePayload,
   User,
 } from '../types/domain';
@@ -249,6 +250,8 @@ export const chatService = {
     apiRequest<ChatMessage>(`/chat/messages/${messageId}/reactions`, { method: 'POST', body: { emoji } }),
   attachment: (attachmentId: string) =>
     apiRequest<ChatAttachmentPayload>(`/chat/attachments/${attachmentId}`, { timeoutMs: 45_000 }),
+  transaction: (messageId: string) =>
+    apiRequest<ChatTransactionReceipt>(`/chat/messages/${messageId}/transaction`),
   sync: (cursor?: string | null) => apiRequest<ChatSyncResult>(
     `/chat/sync${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`,
   ),

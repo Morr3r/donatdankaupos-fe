@@ -5,7 +5,6 @@ import {
   requestRecordingPermissionsAsync,
   setAudioModeAsync,
   useAudioRecorder,
-  useAudioRecorderState,
 } from 'expo-audio';
 import { File } from 'expo-file-system';
 import * as Haptics from 'expo-haptics';
@@ -120,7 +119,7 @@ function transactionSummary(transaction: Transaction): ChatTransactionSummary {
     itemCount: transaction.itemCount,
     pieceCount: transaction.pieceCount,
     total: transaction.total,
-    status: transaction.status === 'refunded' ? 'refunded' : 'paid',
+    status: transaction.status,
     paymentMethod: transaction.paymentMethod,
     orderType: transaction.orderType,
   };
@@ -140,10 +139,12 @@ export function ChatRoomScreen() {
   const insets = useSafeAreaInsets();
   const listRef = useRef<FlatList<Row>>(null);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
-  const recorderState = useAudioRecorderState(recorder, 120);
   const recordingLimitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const recordingStartedAt = useRef<number | null>(null);
+  const recordingDurationRef = useRef(0);
   const stopRecordingRef = useRef<() => Promise<void>>(async () => undefined);
   const recordingBusy = useRef(false);
+  const isLeavingRoom = useRef(false);
 
   const conversationId = params.conversationId;
   const currentUser = useSessionStore((state) => state.user);
@@ -174,12 +175,14 @@ export function ChatRoomScreen() {
   const [isSending, setIsSending] = useState(false);
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [recordingDurationMs, setRecordingDurationMs] = useState(0);
   const [attachmentMenuVisible, setAttachmentMenuVisible] = useState(false);
   const [transactionPickerVisible, setTransactionPickerVisible] = useState(false);
   const [forwardTarget, setForwardTarget] = useState<ChatMessage | null>(null);
   const [isForwarding, setIsForwarding] = useState(false);
   const [readInfoTarget, setReadInfoTarget] = useState<ChatMessage | null>(null);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  const keyboardVisibleRef = useRef(false);
 
   useLayoutEffect(() => {
     navigation.setOptions({ headerShown: false });
@@ -253,10 +256,12 @@ export function ChatRoomScreen() {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
     const showSubscription = Keyboard.addListener(showEvent, () => {
+      keyboardVisibleRef.current = true;
       setIsKeyboardVisible(true);
       if (pinnedToBottom.current) scrollToEnd(false);
     });
     const hideSubscription = Keyboard.addListener(hideEvent, () => {
+      keyboardVisibleRef.current = false;
       setIsKeyboardVisible(false);
     });
     return () => {
@@ -350,6 +355,9 @@ export function ChatRoomScreen() {
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
       await recorder.prepareToRecordAsync();
       recorder.record();
+      recordingStartedAt.current = Date.now();
+      recordingDurationRef.current = 0;
+      setRecordingDurationMs(0);
       setIsRecording(true);
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
       recordingLimitTimer.current = setTimeout(() => {
@@ -367,8 +375,13 @@ export function ChatRoomScreen() {
     if (recordingLimitTimer.current) clearTimeout(recordingLimitTimer.current);
     recordingLimitTimer.current = null;
     try {
-      if (recorder.getStatus().isRecording) await recorder.stop();
+      await recorder.stop();
+    } catch {
+      // The recorder may already have stopped at the native duration limit.
     } finally {
+      recordingStartedAt.current = null;
+      recordingDurationRef.current = 0;
+      setRecordingDurationMs(0);
       setIsRecording(false);
       recordingBusy.current = false;
       await setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
@@ -380,16 +393,23 @@ export function ChatRoomScreen() {
     recordingBusy.current = true;
     if (recordingLimitTimer.current) clearTimeout(recordingLimitTimer.current);
     recordingLimitTimer.current = null;
-    const beforeStop = recorder.getStatus();
+    const elapsed = recordingStartedAt.current === null ? 0 : Date.now() - recordingStartedAt.current;
     const durationMs = Math.min(
       MAX_RECORDING_MS,
-      Math.max(beforeStop.durationMillis, recorderState.durationMillis),
+      Math.max(elapsed, recordingDurationRef.current),
     );
     setIsSending(true);
     try {
-      if (beforeStop.isRecording) await recorder.stop();
+      await recorder.stop();
+      // Release the recording route before the optimistic VN player mounts. Otherwise the
+      // just-sent player can inherit the recorder session and stay silent until a relog.
+      await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+        shouldRouteThroughEarpiece: false,
+      }).catch(() => undefined);
       setIsRecording(false);
-      const uri = recorder.uri ?? recorder.getStatus().url;
+      const uri = recorder.uri;
       if (!uri || durationMs < 500) {
         Alert.alert('Voice note terlalu singkat', 'Rekam setidaknya setengah detik lalu coba lagi.');
         return;
@@ -418,20 +438,38 @@ export function ChatRoomScreen() {
     } catch (error) {
       Alert.alert('Gagal mengirim VN', error instanceof Error ? error.message : 'Voice note belum dapat dikirim.');
     } finally {
+      recordingStartedAt.current = null;
+      recordingDurationRef.current = 0;
+      setRecordingDurationMs(0);
       setIsRecording(false);
       setIsSending(false);
       recordingBusy.current = false;
       await setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
     }
-  }, [conversationId, draft, recorder, recorderState.durationMillis, replyingTo, scrollToEnd, sendMessage]);
+  }, [conversationId, draft, recorder, replyingTo, scrollToEnd, sendMessage]);
 
   stopRecordingRef.current = handleStopRecording;
 
+  // Keep the visible duration in JavaScript. useAudioRecorderState polls the native recorder;
+  // that poll can race with expo-audio releasing its shared object during a screen unmount.
+  useEffect(() => {
+    if (!isRecording) return undefined;
+    const updateDuration = () => {
+      if (recordingStartedAt.current === null) return;
+      const nextDuration = Math.min(MAX_RECORDING_MS, Date.now() - recordingStartedAt.current);
+      recordingDurationRef.current = nextDuration;
+      setRecordingDurationMs(nextDuration);
+    };
+    updateDuration();
+    const timer = setInterval(updateDuration, 120);
+    return () => clearInterval(timer);
+  }, [isRecording]);
+
   useEffect(() => () => {
     if (recordingLimitTimer.current) clearTimeout(recordingLimitTimer.current);
-    if (recorder.getStatus().isRecording) void recorder.stop();
+    recordingStartedAt.current = null;
     void setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
-  }, [recorder]);
+  }, []);
 
   const handleShareTransaction = useCallback(async (transaction: Transaction) => {
     setTransactionPickerVisible(false);
@@ -454,6 +492,14 @@ export function ChatRoomScreen() {
       setIsSending(false);
     }
   }, [conversationId, draft, replyingTo, scrollToEnd, sendMessage]);
+
+  const handleOpenTransaction = useCallback((message: ChatMessage) => {
+    if (!message.transaction || message.outboxStatus) return;
+    navigation.navigate('OrderDetail', {
+      transactionId: message.transaction.id,
+      chatMessageId: message.id,
+    });
+  }, [navigation]);
 
   const handleForward = useCallback(async (targetConversationIds: string[]) => {
     if (!forwardTarget) return;
@@ -541,13 +587,34 @@ export function ChatRoomScreen() {
     : 0;
 
   const returnToChatList = useCallback(() => {
+    if (isLeavingRoom.current) return;
+    isLeavingRoom.current = true;
     Keyboard.dismiss();
-    // popTo preserves the existing tab state when MainTabs is in the stack and safely
-    // replaces this route when the room was opened as a deep-link/push root.
-    navigation.popTo('MainTabs', { screen: 'Chat' });
+    // Always rebuild the root at the conversation list. Chat rooms can be opened from the
+    // tab, search, a notification, or a deep link, so their previous stack is not reliable.
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'MainTabs', params: { screen: 'Chat' } }],
+    });
   }, [navigation]);
 
-  const handleBack = useCallback((): boolean => {
+  const handleHeaderBack = useCallback(() => {
+    if (recordingBusy.current || isLeavingRoom.current) return;
+    if (isRecording) {
+      void handleCancelRecording().then(returnToChatList);
+      return;
+    }
+    returnToChatList();
+  }, [handleCancelRecording, isRecording, returnToChatList]);
+
+  const handleHardwareBack = useCallback((): boolean => {
+    // Android back is contextual: the first press dismisses the IME, then a later press
+    // leaves the room. Tracking this in a ref avoids navigating with stale keyboard state.
+    if (keyboardVisibleRef.current) {
+      keyboardVisibleRef.current = false;
+      Keyboard.dismiss();
+      return true;
+    }
     if (actionTarget) {
       setActionTarget(null);
       return true;
@@ -600,12 +667,17 @@ export function ChatRoomScreen() {
   useFocusEffect(
     useCallback(() => {
       if (Platform.OS !== 'android') return undefined;
-      const subscription = BackHandler.addEventListener('hardwareBackPress', handleBack);
+      const subscription = BackHandler.addEventListener('hardwareBackPress', handleHardwareBack);
       return () => subscription.remove();
-    }, [handleBack]),
+    }, [handleHardwareBack]),
   );
 
   const typingNames = conversation?.typingNames ?? [];
+  const onlineGroupMembers = conversation?.kind === 'group'
+    ? conversation.members.filter(
+        (member) => member.userId !== currentUser?.id && !member.leftAt && member.isOnline,
+      ).length
+    : 0;
   const directRole = conversation?.counterpartRole ? roleLabels[conversation.counterpartRole] : null;
   const headerTitle = conversation?.kind === 'direct' && directRole
     ? `${conversation.title} - ${directRole}`
@@ -615,7 +687,9 @@ export function ChatRoomScreen() {
       ? `${typingNames.join(', ')} sedang mengetik…`
       : 'sedang mengetik…'
     : conversation?.kind === 'group'
-      ? `${conversation.memberCount} anggota`
+      ? onlineGroupMembers > 0
+        ? `${onlineGroupMembers} online`
+        : `${conversation.memberCount} anggota`
       : conversation?.isOnline
         ? 'Online'
         : formatLastOnline(conversation?.lastSeenAt);
@@ -623,12 +697,17 @@ export function ChatRoomScreen() {
   return (
     <AppBackground>
       <View style={[styles.header, { paddingTop: insets.top + spacing.xxs }]}>
-        <ScalePressable accessibilityLabel="Kembali ke daftar obrolan" onPress={handleBack} style={styles.backButton}>
+        <ScalePressable
+          accessibilityLabel="Kembali ke daftar obrolan"
+          onPress={handleHeaderBack}
+          style={styles.backButton}
+        >
           <ChevronLeft color={palette.cocoaDark} size={24} strokeWidth={2.2} />
         </ScalePressable>
         <ScalePressable
           accessibilityHint="Membuka info percakapan"
           accessibilityLabel={`Info ${conversation?.title ?? 'percakapan'}`}
+          containerStyle={styles.headerIdentityContainer}
           onPress={() => navigation.navigate('ChatInfo', { conversationId })}
           style={styles.headerIdentity}
         >
@@ -714,6 +793,7 @@ export function ChatRoomScreen() {
                 isMine={isMine(item.message)}
                 message={item.message}
                 onLongPress={setActionTarget}
+                onOpenTransaction={handleOpenTransaction}
                 onReact={(message, emoji) => {
                   void reactToMessage(message.id, emoji).catch(() => undefined);
                 }}
@@ -746,7 +826,7 @@ export function ChatRoomScreen() {
           onSend={() => void handleSend()}
           onStartRecording={() => void handleStartRecording()}
           onStopRecording={() => void handleStopRecording()}
-          recordingDurationMs={recorderState.durationMillis}
+          recordingDurationMs={recordingDurationMs}
           replyingTo={replyingTo}
           value={draft}
         />
@@ -850,7 +930,7 @@ export function ChatRoomScreen() {
 
       <FormModal
         onClose={() => setAttachmentMenuVisible(false)}
-        subtitle="Tambahkan media atau bagikan transaksi selesai ke obrolan ini."
+        subtitle="Tambahkan media atau bagikan transaksi lunas maupun bayar nanti ke obrolan ini."
         title="Tambahkan ke pesan"
         visible={attachmentMenuVisible}
       >
@@ -872,7 +952,7 @@ export function ChatRoomScreen() {
             </View>
           </ScalePressable>
           <ScalePressable
-            accessibilityLabel="Pilih transaksi selesai"
+            accessibilityLabel="Pilih transaksi"
             onPress={() => {
               setAttachmentMenuVisible(false);
               setTransactionPickerVisible(true);
@@ -884,7 +964,7 @@ export function ChatRoomScreen() {
             </View>
             <View style={styles.attachmentChoiceCopy}>
               <Text style={styles.attachmentChoiceTitle}>Transaksi</Text>
-              <Text style={styles.attachmentChoiceBody}>Bagikan transaksi yang sudah selesai</Text>
+              <Text style={styles.attachmentChoiceBody}>Bagikan transaksi lunas atau bayar nanti</Text>
             </View>
           </ScalePressable>
         </View>
@@ -928,8 +1008,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerIdentity: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  headerCopy: { flex: 1 },
+  headerIdentityContainer: { flex: 1, minWidth: 0 },
+  headerIdentity: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  headerCopy: { flex: 1, minWidth: 0 },
   headerTitle: { color: palette.ink, fontFamily: type.bold, fontSize: 15.5 },
   headerSubtitle: { color: palette.muted, fontFamily: type.regular, fontSize: 11.5, marginTop: 1 },
   headerSubtitleTyping: { color: palette.success, fontFamily: type.semibold },

@@ -475,18 +475,25 @@ export const useChatStore = create<ChatState>((set, get) => ({
           attachment: pending.attachment,
           transactionId: pending.transactionId,
         });
+        const uploadedAudio = saved.attachment && pending.attachment?.mimeType.startsWith('audio/')
+          ? pending.attachment.data.startsWith('data:')
+            ? pending.attachment.data
+            : `data:${pending.attachment.mimeType};base64,${pending.attachment.data}`
+          : null;
         set((state) => ({
           outbox: state.outbox.filter((item) => item.clientMessageId !== pending.clientMessageId),
+          attachmentCache: uploadedAudio && saved.attachment
+            ? { ...state.attachmentCache, [saved.attachment.id]: uploadedAudio }
+            : state.attachmentCache,
           messagesByConversation: {
             ...state.messagesByConversation,
             [pending.conversationId]: mergeMessages(
               state.messagesByConversation[pending.conversationId] ?? [],
               [
-                pending.localImageUri || pending.localAudioUri
+                pending.localImageUri
                   ? {
                       ...saved,
                       localImageUri: pending.localImageUri,
-                      localAudioUri: pending.localAudioUri,
                     }
                   : saved,
               ],
