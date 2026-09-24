@@ -66,15 +66,19 @@ kas yang tersedia untuk pengeluaran. `POST /expenses/{id}/cancellations` menerim
 menandai catatan sebagai dibatalkan, dan mengembalikan nominal ke sumber dana asal. Catatan tidak
 dihapus permanen agar jejak audit tetap tersedia.
 
-Respons `/reports/sales-summary` menyertakan `pieceCount`, `costPerItem`, `costOfGoodsSold`,
-`productionCost`, `fixedCostAllocation`, `netProfit`, dan `netMarginPercent`. HPP dihitung per
-keluarga produk dari patokan box isi 12: Jadul Rp35.332, Klasik Rp39.332, dan Antop Rp42.932.
-Total tersebut sudah mencakup biaya tetap Rp21.538 per box, berdasarkan Rp4.480.000 per bulan
-dibagi target 208 box. Paket isi 3/6/12 dan produk satuan diprorata dari total box lalu dibulatkan
-ke rupiah terdekat.
-Setiap respons transaksi juga menyertakan `pieceCount`, `costPerItem`, `costOfGoodsSold`,
-`productionCost`, `fixedCostAllocation`, `netProfit`, dan `netMarginPercent`. `netProfit` dihitung
-sebagai total transaksi dikurangi HPP produksi dan alokasi biaya tetap.
+Respons `/reports/sales-summary` menyertakan `pieceCount`, `boxCount`, `costPerItem`,
+`productionCost`, `contributionMargin`, `monthlyFixedCost`, `periodFixedCost`,
+`fixedCostPerBox`, `netBusinessProfit`, dan margin terkait. HPP produksi box isi 12 adalah
+Jadul Rp13.794, Klasik Rp17.794, dan Antop Rp21.394. Biaya tetap bulanan Rp4.480.000
+diprorata berdasarkan hari kalender untuk laporan parsial, lalu dikurangkan satu kali dari total
+margin kontribusi. `fixedCostPerBox` hanya indikator dinamis: biaya tetap bulanan dibagi ekuivalen
+box terjual pada rentang laporan.
+
+Setiap respons transaksi menyertakan `productionCost`, `contributionMargin`,
+`contributionMarginPercent`, dan `directlyHealthy`. Margin kontribusi adalah total transaksi
+dikurangi HPP produksi. Biaya tetap tidak dibebankan ke transaksi. `directlyHealthy` hanya bernilai
+`false` saat harga jual lebih rendah dari HPP produksi. Field lama `netProfit` dan
+`netMarginPercent` tetap tersedia sebagai alias margin kontribusi untuk kompatibilitas aplikasi lama.
 
 Setiap produk dapat memiliki `resellerPrice` (integer rupiah atau `null`). Produk dengan nilai
 `null` tidak tersedia pada mode harga reseller. Harga pelanggan tetap memakai `price`.

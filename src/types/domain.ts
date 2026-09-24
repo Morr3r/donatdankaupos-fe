@@ -216,8 +216,11 @@ export interface Transaction {
   change: number;
   costPerItem: number;
   productionCost?: number;
-  fixedCostAllocation?: number;
   costOfGoodsSold: number;
+  contributionMargin?: number;
+  contributionMarginPercent?: number | null;
+  directlyHealthy?: boolean | null;
+  /** Kompatibilitas API lama; gunakan contributionMargin untuk transaksi. */
   netProfit: number;
   netMarginPercent: number | null;
   syncStatus: 'synced';
@@ -225,7 +228,7 @@ export interface Transaction {
 
 export type ChatTransactionReceipt = Omit<
   Transaction,
-  'costPerItem' | 'productionCost' | 'fixedCostAllocation' | 'costOfGoodsSold' | 'netProfit' | 'netMarginPercent'
+  'costPerItem' | 'productionCost' | 'costOfGoodsSold' | 'contributionMargin' | 'contributionMarginPercent' | 'directlyHealthy' | 'netProfit' | 'netMarginPercent'
 >;
 
 export interface LoginPayload {

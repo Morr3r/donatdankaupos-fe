@@ -25,8 +25,10 @@ const receiptAsTransaction = (receipt: ChatTransactionReceipt): Transaction => (
   ...receipt,
   costPerItem: 0,
   productionCost: 0,
-  fixedCostAllocation: 0,
   costOfGoodsSold: 0,
+  contributionMargin: 0,
+  contributionMarginPercent: null,
+  directlyHealthy: null,
   netProfit: 0,
   netMarginPercent: null,
 });
@@ -77,6 +79,9 @@ export function OrderDetailScreen({ navigation, route }: Props) {
 
   if (!transaction) return <Screen><Header onBack={navigation.goBack} title={isChatReceipt ? 'Struk transaksi' : 'Detail transaksi'} /><Text style={styles.notFound}>{loadError ?? 'Memuat transaksi…'}</Text></Screen>;
 
+  const contributionMargin = transaction.contributionMargin ?? transaction.netProfit;
+  const contributionMarginPercent = transaction.contributionMarginPercent ?? transaction.netMarginPercent;
+  const directlyHealthy = transaction.directlyHealthy ?? (transaction.status === 'paid' ? contributionMargin >= 0 : null);
   const safeReceiptNo = transaction.receiptNo.replace(/[^a-zA-Z0-9_-]/g, '-');
 
   const handleRefund = async () => {
@@ -207,16 +212,20 @@ export function OrderDetailScreen({ navigation, route }: Props) {
 
       {!isChatReceipt ? (
         <>
-          <SectionHeader title="Profit setelah HPP lengkap" />
+          <SectionHeader title="Margin kontribusi transaksi" />
           <GlassCard contentStyle={styles.profitCard}>
             <InfoRow label="Jumlah donat" value={`${transaction.pieceCount} pcs`} />
-            <InfoRow label="Rata-rata HPP lengkap / pcs" value={formatCurrency(transaction.costPerItem)} />
+            <InfoRow label="Rata-rata HPP produksi / pcs" value={formatCurrency(transaction.costPerItem)} />
             {transaction.productionCost !== undefined ? <InfoRow label="HPP produksi" value={formatCurrency(transaction.productionCost)} /> : null}
-            {transaction.fixedCostAllocation !== undefined ? <InfoRow label="Alokasi biaya tetap" value={formatCurrency(transaction.fixedCostAllocation)} /> : null}
-            <InfoRow label="Total HPP lengkap" value={formatCurrency(transaction.costOfGoodsSold)} />
             <Divider />
-            <View style={styles.profitRow}><Text style={styles.profitLabel}>Laba bersih</Text><Text style={[styles.profitValue, transaction.netProfit < 0 && styles.profitNegative]}>{formatCurrency(transaction.netProfit)}</Text></View>
-            <Text style={styles.profitHelper}>{transaction.status === 'pending' ? 'Belum masuk pendapatan atau profit sampai transaksi dilunasi.' : transaction.status === 'refunded' ? 'Transaksi refund tidak masuk profit.' : `Laba bersih = total transaksi − HPP produksi − alokasi biaya tetap untuk ${transaction.pieceCount} pcs${transaction.netMarginPercent === null ? '.' : ` · margin ${transaction.netMarginPercent}%.`}`}</Text>
+            <View style={styles.profitRow}><Text style={styles.profitLabel}>Margin kontribusi</Text><Text style={[styles.profitValue, contributionMargin < 0 && styles.profitNegative]}>{formatCurrency(contributionMargin)}</Text></View>
+            <Text style={styles.profitHelper}>{transaction.status === 'pending' ? 'Belum masuk pendapatan sampai transaksi dilunasi.' : transaction.status === 'refunded' ? 'Transaksi refund tidak masuk margin kontribusi.' : `Harga jual − HPP produksi${contributionMarginPercent === null ? '.' : ` · margin ${contributionMarginPercent}%.`} Biaya tetap dihitung pada laporan periode, bukan pada transaksi ini.`}</Text>
+            {directlyHealthy !== null ? (
+              <View style={[styles.healthNote, directlyHealthy ? styles.healthNoteHealthy : styles.healthNoteUnhealthy]}>
+                <Text style={[styles.healthTitle, directlyHealthy ? styles.healthTitleHealthy : styles.healthTitleUnhealthy]}>{directlyHealthy ? 'Sehat secara langsung' : 'Harga di bawah HPP produksi'}</Text>
+                <Text style={styles.healthText}>{directlyHealthy ? 'Harga jual menutup HPP produksi. Besarnya biaya tetap per box tidak mengubah status transaksi ini.' : 'Harga jual belum menutup biaya adonan, kemasan, dan topping.'}</Text>
+              </View>
+            ) : null}
           </GlassCard>
         </>
       ) : null}
@@ -320,6 +329,13 @@ const styles = StyleSheet.create({
   profitValue: { color: palette.success, fontFamily: type.bold, fontSize: 18 },
   profitNegative: { color: palette.danger },
   profitHelper: { color: palette.muted, fontFamily: type.regular, fontSize: 10, lineHeight: 15 },
+  healthNote: { borderRadius: radius.sm, padding: spacing.sm },
+  healthNoteHealthy: { backgroundColor: palette.successSoft },
+  healthNoteUnhealthy: { backgroundColor: palette.dangerSoft },
+  healthTitle: { fontFamily: type.bold, fontSize: 11 },
+  healthTitleHealthy: { color: palette.success },
+  healthTitleUnhealthy: { color: palette.danger },
+  healthText: { color: palette.inkSoft, fontFamily: type.regular, fontSize: 10, lineHeight: 15, marginTop: 3 },
   actions: { gap: spacing.xs, marginTop: spacing.lg },
   shareFeedback: { fontFamily: type.medium, fontSize: 11, lineHeight: 17, textAlign: 'center', paddingHorizontal: spacing.sm },
   shareFeedbackSuccess: { color: palette.success },

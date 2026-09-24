@@ -20,6 +20,7 @@ const filters: { id: Filter; label: string }[] = [
   { id: 'paid', label: 'Berhasil' },
   { id: 'refunded', label: 'Refund' },
 ];
+const contributionMargin = (transaction: Transaction) => transaction.contributionMargin ?? transaction.netProfit;
 
 export function OrdersScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -135,7 +136,7 @@ export function OrdersScreen() {
                 <View style={styles.transactionBottom}>
                   <View style={styles.transactionMeta}><Text style={styles.metaLabel}>{item.itemCount} item · {getPaymentLabel(item.paymentMethod)}</Text><Text numberOfLines={1} style={styles.customer}>{item.customerName ?? 'Pelanggan umum'}</Text></View>
                   <View style={styles.amountSection}>
-                    <View style={styles.amountWrap}><Text style={styles.amount}>{formatCurrency(item.total)}</Text><Text style={[styles.profitAmount, item.status !== 'paid' && styles.refundedProfit]}>{item.status === 'pending' ? 'Belum masuk pendapatan' : `Profit ${formatCurrency(item.netProfit)}`}</Text></View>
+                    <View style={styles.amountWrap}><Text style={styles.amount}>{formatCurrency(item.total)}</Text><Text style={[styles.profitAmount, item.status !== 'paid' && styles.refundedProfit, item.status === 'paid' && contributionMargin(item) < 0 && styles.negativeContribution]}>{item.status === 'pending' ? 'Belum masuk pendapatan' : `Kontribusi ${formatCurrency(contributionMargin(item))}`}</Text></View>
                     <View style={styles.openIcon}><ArrowUpRight color={palette.muted} size={17} /></View>
                   </View>
                 </View>
@@ -179,7 +180,7 @@ function SalesTableRow({ item, onPress }: { item: Transaction; onPress: () => vo
       <View style={styles.cashierColumn}><Text numberOfLines={1} style={styles.tableTextStrong}>{item.cashierName}</Text><Text numberOfLines={1} style={styles.tableSubtext}>{item.customerName ?? 'Pelanggan umum'}</Text></View>
       <Text style={[styles.tableText, styles.methodColumn]}>{getPaymentLabel(item.paymentMethod)}</Text>
       <Text style={[styles.tableText, styles.itemColumn]}>{item.itemCount}</Text>
-      <View style={styles.totalColumn}><Text style={styles.tableAmount}>{formatCurrency(item.total)}</Text><Text style={[styles.tableProfit, item.status !== 'paid' && styles.refundedProfit]}>{item.status === 'pending' ? 'Belum diakui' : `Profit ${formatCurrency(item.netProfit)}`}</Text></View>
+      <View style={styles.totalColumn}><Text style={styles.tableAmount}>{formatCurrency(item.total)}</Text><Text style={[styles.tableProfit, item.status !== 'paid' && styles.refundedProfit, item.status === 'paid' && contributionMargin(item) < 0 && styles.negativeContribution]}>{item.status === 'pending' ? 'Belum diakui' : `Kontribusi ${formatCurrency(contributionMargin(item))}`}</Text></View>
       <View style={styles.stateColumn}><StatusPill label={item.status === 'paid' ? 'Berhasil' : item.status === 'pending' ? 'Bayar nanti' : 'Refund'} tone={item.status === 'paid' ? 'success' : item.status === 'pending' ? 'warning' : 'danger'} /></View>
       <View style={styles.openColumn}><ArrowUpRight color={palette.muted} size={17} /></View>
     </ScalePressable>
@@ -232,6 +233,7 @@ const styles = StyleSheet.create({
   amount: { color: palette.cocoa, fontFamily: type.bold, fontSize: 15 },
   profitAmount: { color: palette.success, fontFamily: type.semibold, fontSize: 9 },
   refundedProfit: { color: palette.muted },
+  negativeContribution: { color: palette.danger },
   openIcon: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm, backgroundColor: 'rgba(107,63,42,0.06)' },
   empty: { minHeight: 280, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.md },
   emptyTitle: { color: palette.ink, fontFamily: type.bold, fontSize: 15, marginTop: spacing.md },
