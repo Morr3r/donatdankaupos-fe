@@ -169,6 +169,8 @@ export interface SalesSummary {
   pieceCount: number;
   averageOrderValue: number;
   costPerItem: number;
+  productionCost: number;
+  fixedCostAllocation: number;
   costOfGoodsSold: number;
   netProfit: number;
   netMarginPercent: number | null;

@@ -24,6 +24,8 @@ const settlementMethods: PaymentMethod[] = ['cash', 'qris', 'card', 'transfer'];
 const receiptAsTransaction = (receipt: ChatTransactionReceipt): Transaction => ({
   ...receipt,
   costPerItem: 0,
+  productionCost: 0,
+  fixedCostAllocation: 0,
   costOfGoodsSold: 0,
   netProfit: 0,
   netMarginPercent: null,
@@ -205,14 +207,16 @@ export function OrderDetailScreen({ navigation, route }: Props) {
 
       {!isChatReceipt ? (
         <>
-          <SectionHeader title="Profit transaksi" />
+          <SectionHeader title="Profit setelah HPP lengkap" />
           <GlassCard contentStyle={styles.profitCard}>
             <InfoRow label="Jumlah donat" value={`${transaction.pieceCount} pcs`} />
-            <InfoRow label="HPP per pcs" value={formatCurrency(transaction.costPerItem)} />
-            <InfoRow label="Total HPP" value={formatCurrency(transaction.costOfGoodsSold)} />
+            <InfoRow label="Rata-rata HPP lengkap / pcs" value={formatCurrency(transaction.costPerItem)} />
+            {transaction.productionCost !== undefined ? <InfoRow label="HPP produksi" value={formatCurrency(transaction.productionCost)} /> : null}
+            {transaction.fixedCostAllocation !== undefined ? <InfoRow label="Alokasi biaya tetap" value={formatCurrency(transaction.fixedCostAllocation)} /> : null}
+            <InfoRow label="Total HPP lengkap" value={formatCurrency(transaction.costOfGoodsSold)} />
             <Divider />
             <View style={styles.profitRow}><Text style={styles.profitLabel}>Laba bersih</Text><Text style={[styles.profitValue, transaction.netProfit < 0 && styles.profitNegative]}>{formatCurrency(transaction.netProfit)}</Text></View>
-            <Text style={styles.profitHelper}>{transaction.status === 'pending' ? 'Belum masuk pendapatan atau profit sampai transaksi dilunasi.' : transaction.status === 'refunded' ? 'Transaksi refund tidak masuk profit.' : `Laba bersih = total transaksi − HPP ${transaction.pieceCount} pcs donat${transaction.netMarginPercent === null ? '.' : ` · margin ${transaction.netMarginPercent}%.`}`}</Text>
+            <Text style={styles.profitHelper}>{transaction.status === 'pending' ? 'Belum masuk pendapatan atau profit sampai transaksi dilunasi.' : transaction.status === 'refunded' ? 'Transaksi refund tidak masuk profit.' : `Laba bersih = total transaksi − HPP produksi − alokasi biaya tetap untuk ${transaction.pieceCount} pcs${transaction.netMarginPercent === null ? '.' : ` · margin ${transaction.netMarginPercent}%.`}`}</Text>
           </GlassCard>
         </>
       ) : null}

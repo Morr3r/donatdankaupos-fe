@@ -10,11 +10,15 @@ import { BarChart, MetricCard, ProgressRow } from '../components/data';
 import { DateRangePicker } from '../components/date-range-picker';
 import { Button, GlassCard, Header, ScalePressable, Screen, SectionHeader } from '../components/ui';
 import type { RootStackParamList } from '../navigation/types';
-import { palette, spacing, type } from '../theme/tokens';
+import { palette, radius, spacing, type } from '../theme/tokens';
 import { type DateRangeSelection, formatRangeLabel, makeDateRange, toDateParam } from '../utils/date';
 import { formatCompact, formatCurrency, formatPercent, paymentLabels } from '../utils/format';
 
-const DEFAULT_HPP_PER_ITEM = 2_650;
+const HPP_BOX_REFERENCES = [
+  { label: 'Jadul', topping: 3_200, productionPerPiece: 1_150, productionPerBox: 13_794, completePerBox: 35_332 },
+  { label: 'Klasik', topping: 7_200, productionPerPiece: 1_483, productionPerBox: 17_794, completePerBox: 39_332 },
+  { label: 'Antop', topping: 10_800, productionPerPiece: 1_783, productionPerBox: 21_394, completePerBox: 42_932 },
+] as const;
 
 export function ReportsScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -94,12 +98,16 @@ export function ReportsScreen() {
   const compact = width < 480;
   const narrow = width < 350;
   const pieceCount = summary?.pieceCount ?? summary?.itemCount ?? 0;
-  const costPerItem = summary?.costPerItem ?? DEFAULT_HPP_PER_ITEM;
+  const costPerItem = summary?.costPerItem ?? 0;
+  const productionCost = summary?.productionCost ?? 0;
+  const fixedCostAllocation = summary?.fixedCostAllocation ?? 0;
   const totalHpp = summary?.costOfGoodsSold ?? 0;
   const netProfit = summary?.netProfit ?? 0;
-  const netProfitHelper = summary?.netMarginPercent === null || summary?.netMarginPercent === undefined
-    ? `Penjualan − HPP ${formatCurrency(costPerItem)} / pcs`
-    : `Margin ${formatPercent(summary.netMarginPercent)} · Penjualan − total HPP ${formatCurrency(totalHpp)}`;
+  const netProfitHelper = !pieceCount
+    ? 'Belum ada penjualan untuk menghitung HPP'
+    : summary?.netMarginPercent === null || summary?.netMarginPercent === undefined
+      ? `Rata-rata HPP lengkap ${formatCurrency(costPerItem)} / pcs`
+      : `Margin ${formatPercent(summary.netMarginPercent)} · HPP lengkap ${formatCurrency(totalHpp)}`;
 
   return (
     <Screen>
@@ -114,8 +122,24 @@ export function ReportsScreen() {
         <View style={[styles.metric, compact && styles.metricPhone, narrow && styles.metricNarrow]}><MetricCard helper={summary?.previousPeriodGrowthPercent === null || summary?.previousPeriodGrowthPercent === undefined ? 'Belum ada periode pembanding' : `${summary.previousPeriodGrowthPercent >= 0 ? '+' : ''}${summary.previousPeriodGrowthPercent}% vs periode lalu`} icon={<TrendingUp color={palette.cocoa} size={21} />} label="Penjualan bersih" value={formatCompact(revenue)} /></View>
         <View style={[styles.metric, compact && styles.metricPhone, narrow && styles.metricNarrow]}><MetricCard accent={palette.rose} helper={`Rata-rata ${formatCurrency(summary?.averageOrderValue ?? 0)}`} icon={<ReceiptText color={palette.rose} size={21} />} label="Transaksi berhasil" value={String(summary?.transactionCount ?? 0)} /></View>
         <View style={[styles.metric, compact && styles.metricPhone, narrow && styles.metricNarrow]}><MetricCard accent={palette.honey} helper={summary?.transactionCount ? `${(pieceCount / summary.transactionCount).toFixed(1)} pcs / struk` : 'Belum ada transaksi'} icon={<PackageCheck color={palette.honey} size={21} />} label="Pcs terjual" value={String(pieceCount)} /></View>
-        <View style={[styles.metric, compact && styles.metricPhone, narrow && styles.metricNarrow]}><MetricCard accent={palette.success} helper={netProfitHelper} icon={<WalletCards color={palette.success} size={21} />} label="Laba bersih" value={formatCompact(netProfit)} /></View>
+        <View style={[styles.metric, compact && styles.metricPhone, narrow && styles.metricNarrow]}><MetricCard accent={palette.success} helper={netProfitHelper} icon={<WalletCards color={palette.success} size={21} />} label="Laba setelah HPP" value={formatCompact(netProfit)} /></View>
       </View>
+
+      <SectionHeader title={`Rincian HPP · ${rangeLabel}`} />
+      <GlassCard contentStyle={[styles.hppCard, compact && styles.hppCardCompact]}>
+        <View style={styles.hppPeriodTotals}>
+          <HppTotal label="HPP produksi" value={productionCost} />
+          <HppTotal label="Alokasi biaya tetap" value={fixedCostAllocation} />
+          <HppTotal emphasized label="HPP lengkap" value={totalHpp} />
+        </View>
+        <View style={styles.hppAssumption}>
+          <Text style={styles.hppAssumptionTitle}>Acuan per box isi 12</Text>
+          <Text style={styles.hppAssumptionText}>Adonan {formatCurrency(7_594)} + kemasan {formatCurrency(3_000)} + topping. Biaya tetap {formatCurrency(4_480_000)} / bulan dibagi 208 box = {formatCurrency(21_538)} / box.</Text>
+        </View>
+        <View style={styles.hppReferenceList}>
+          {HPP_BOX_REFERENCES.map((item) => <HppReferenceRow key={item.label} {...item} />)}
+        </View>
+      </GlassCard>
 
       <SectionHeader title={`Pengeluaran · ${rangeLabel}`} />
       <ScalePressable
@@ -192,6 +216,30 @@ function RankingRow({ index, name, sold, revenue }: { index: number; name: strin
   );
 }
 
+function HppTotal({ label, value, emphasized = false }: { label: string; value: number; emphasized?: boolean }) {
+  return (
+    <View style={[styles.hppTotal, emphasized && styles.hppTotalEmphasized]}>
+      <Text style={styles.hppTotalLabel}>{label}</Text>
+      <Text style={[styles.hppTotalValue, emphasized && styles.hppTotalValueEmphasized]}>{formatCurrency(value)}</Text>
+    </View>
+  );
+}
+
+function HppReferenceRow({ label, topping, productionPerPiece, productionPerBox, completePerBox }: typeof HPP_BOX_REFERENCES[number]) {
+  return (
+    <View style={styles.hppReferenceRow}>
+      <View style={styles.hppReferenceCopy}>
+        <Text style={styles.hppReferenceName}>{label}</Text>
+        <Text style={styles.hppReferenceMeta}>Produksi {formatCurrency(productionPerPiece)} / pcs · topping {formatCurrency(topping)} / box · produksi {formatCurrency(productionPerBox)} / box</Text>
+      </View>
+      <View style={styles.hppReferenceAmountWrap}>
+        <Text style={styles.hppReferenceAmount}>{formatCurrency(completePerBox)}</Text>
+        <Text style={styles.hppReferenceSuffix}>HPP lengkap / box</Text>
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   filterToolbar: { gap: spacing.sm },
   periodFilter: { flex: 1 },
@@ -200,6 +248,25 @@ const styles = StyleSheet.create({
   metric: { minWidth: 150, flexGrow: 1, flexBasis: 0 },
   metricPhone: { flexBasis: '46%' },
   metricNarrow: { minWidth: '100%', flexBasis: '100%' },
+  hppCard: { padding: spacing.lg, gap: spacing.md },
+  hppCardCompact: { padding: spacing.md },
+  hppPeriodTotals: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  hppTotal: { flexGrow: 1, flexBasis: 140, minWidth: 0, borderRadius: radius.md, padding: spacing.md, backgroundColor: 'rgba(107,63,42,0.06)' },
+  hppTotalEmphasized: { backgroundColor: palette.honeySoft },
+  hppTotalLabel: { color: palette.muted, fontFamily: type.medium, fontSize: 11 },
+  hppTotalValue: { color: palette.ink, fontFamily: type.bold, fontSize: 17, marginTop: spacing.xxs, fontVariant: ['tabular-nums'] },
+  hppTotalValueEmphasized: { color: palette.cocoa },
+  hppAssumption: { borderTopWidth: 1, borderTopColor: palette.line, paddingTop: spacing.md },
+  hppAssumptionTitle: { color: palette.ink, fontFamily: type.semibold, fontSize: 12 },
+  hppAssumptionText: { color: palette.muted, fontFamily: type.regular, fontSize: 11, lineHeight: 17, marginTop: spacing.xxs },
+  hppReferenceList: { borderTopWidth: 1, borderTopColor: palette.line },
+  hppReferenceRow: { minHeight: 72, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md, paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: palette.line },
+  hppReferenceCopy: { flex: 1, minWidth: 0 },
+  hppReferenceName: { color: palette.ink, fontFamily: type.bold, fontSize: 12 },
+  hppReferenceMeta: { color: palette.muted, fontFamily: type.regular, fontSize: 10, lineHeight: 15, marginTop: 3 },
+  hppReferenceAmountWrap: { flexShrink: 0, alignItems: 'flex-end' },
+  hppReferenceAmount: { color: palette.cocoa, fontFamily: type.bold, fontSize: 13, fontVariant: ['tabular-nums'] },
+  hppReferenceSuffix: { color: palette.muted, fontFamily: type.regular, fontSize: 9, marginTop: 2 },
   expenseCard: { padding: spacing.lg, gap: spacing.md },
   expenseCardPressable: { borderRadius: 24 },
   expenseCardCompact: { padding: spacing.md },

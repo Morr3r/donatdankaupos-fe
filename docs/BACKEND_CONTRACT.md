@@ -67,10 +67,14 @@ menandai catatan sebagai dibatalkan, dan mengembalikan nominal ke sumber dana as
 dihapus permanen agar jejak audit tetap tersedia.
 
 Respons `/reports/sales-summary` menyertakan `pieceCount`, `costPerItem`, `costOfGoodsSold`,
-`netProfit`, dan `netMarginPercent`. HPP saat ini dipukul rata Rp2.650 per pcs donat
-untuk seluruh produk dan topping. Paket isi 6/12 dikonversi ke jumlah pcs sebelum HPP dihitung.
+`productionCost`, `fixedCostAllocation`, `netProfit`, dan `netMarginPercent`. HPP dihitung per
+keluarga produk dari patokan box isi 12: Jadul Rp35.332, Klasik Rp39.332, dan Antop Rp42.932.
+Total tersebut sudah mencakup biaya tetap Rp21.538 per box, berdasarkan Rp4.480.000 per bulan
+dibagi target 208 box. Paket isi 3/6/12 dan produk satuan diprorata dari total box lalu dibulatkan
+ke rupiah terdekat.
 Setiap respons transaksi juga menyertakan `pieceCount`, `costPerItem`, `costOfGoodsSold`,
-`netProfit`, dan `netMarginPercent`. `netProfit` dihitung sebagai total transaksi dikurangi total HPP.
+`productionCost`, `fixedCostAllocation`, `netProfit`, dan `netMarginPercent`. `netProfit` dihitung
+sebagai total transaksi dikurangi HPP produksi dan alokasi biaya tetap.
 
 Setiap produk dapat memiliki `resellerPrice` (integer rupiah atau `null`). Produk dengan nilai
 `null` tidak tersedia pada mode harga reseller. Harga pelanggan tetap memakai `price`.

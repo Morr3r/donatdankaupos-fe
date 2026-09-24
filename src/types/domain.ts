@@ -215,6 +215,8 @@ export interface Transaction {
   amountPaid: number;
   change: number;
   costPerItem: number;
+  productionCost?: number;
+  fixedCostAllocation?: number;
   costOfGoodsSold: number;
   netProfit: number;
   netMarginPercent: number | null;
@@ -223,7 +225,7 @@ export interface Transaction {
 
 export type ChatTransactionReceipt = Omit<
   Transaction,
-  'costPerItem' | 'costOfGoodsSold' | 'netProfit' | 'netMarginPercent'
+  'costPerItem' | 'productionCost' | 'fixedCostAllocation' | 'costOfGoodsSold' | 'netProfit' | 'netMarginPercent'
 >;
 
 export interface LoginPayload {
