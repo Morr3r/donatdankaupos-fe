@@ -67,17 +67,14 @@ menandai catatan sebagai dibatalkan, dan mengembalikan nominal ke sumber dana as
 dihapus permanen agar jejak audit tetap tersedia.
 
 Respons `/reports/sales-summary` menyertakan `pieceCount`, `boxCount`, `costPerItem`,
-`productionCost`, `contributionMargin`, `monthlyFixedCost`, `periodFixedCost`,
-`fixedCostPerBox`, `netBusinessProfit`, dan margin terkait. HPP produksi box isi 12 adalah
-Jadul Rp13.794, Klasik Rp17.794, dan Antop Rp21.394. Biaya tetap bulanan Rp4.480.000
-diprorata berdasarkan hari kalender untuk laporan parsial, lalu dikurangkan satu kali dari total
-margin kontribusi. `fixedCostPerBox` hanya indikator dinamis: biaya tetap bulanan dibagi ekuivalen
-box terjual pada rentang laporan.
+`productionCost`, `contributionMargin`, dan `contributionMarginPercent`. HPP produksi box isi 12
+adalah Jadul Rp13.794, Klasik Rp17.794, dan Antop Rp21.394. Margin kontribusi dihitung sebagai
+penjualan dikurangi HPP produksi.
 
 Setiap respons transaksi menyertakan `productionCost`, `contributionMargin`,
 `contributionMarginPercent`, dan `directlyHealthy`. Margin kontribusi adalah total transaksi
-dikurangi HPP produksi. Biaya tetap tidak dibebankan ke transaksi. `directlyHealthy` hanya bernilai
-`false` saat harga jual lebih rendah dari HPP produksi. Field lama `netProfit` dan
+dikurangi HPP produksi. `directlyHealthy` hanya bernilai `false` saat harga jual lebih rendah dari
+HPP produksi. Field lama `netProfit` dan
 `netMarginPercent` tetap tersedia sebagai alias margin kontribusi untuk kompatibilitas aplikasi lama.
 
 Setiap produk dapat memiliki `resellerPrice` (integer rupiah atau `null`). Produk dengan nilai

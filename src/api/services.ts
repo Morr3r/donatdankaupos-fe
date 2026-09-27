@@ -173,16 +173,8 @@ export interface SalesSummary {
   costOfGoodsSold: number;
   contributionMargin: number;
   contributionMarginPercent: number | null;
-  monthlyFixedCost: number;
-  periodFixedCost: number;
   boxCount: number;
-  fixedCostPerBox: number | null;
-  netBusinessProfit: number;
-  netBusinessMarginPercent: number | null;
-  baselineTargetBoxes: number;
-  recommendedTargetBoxesMin: number;
-  recommendedTargetBoxesMax: number;
-  /** Kompatibilitas API lama; gunakan netBusinessProfit. */
+  /** Kompatibilitas API lama; nilainya sama dengan contributionMargin. */
   netProfit: number;
   netMarginPercent: number | null;
   previousPeriodGrowthPercent: number | null;

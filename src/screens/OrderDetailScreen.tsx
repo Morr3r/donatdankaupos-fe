@@ -219,11 +219,11 @@ export function OrderDetailScreen({ navigation, route }: Props) {
             {transaction.productionCost !== undefined ? <InfoRow label="HPP produksi" value={formatCurrency(transaction.productionCost)} /> : null}
             <Divider />
             <View style={styles.profitRow}><Text style={styles.profitLabel}>Margin kontribusi</Text><Text style={[styles.profitValue, contributionMargin < 0 && styles.profitNegative]}>{formatCurrency(contributionMargin)}</Text></View>
-            <Text style={styles.profitHelper}>{transaction.status === 'pending' ? 'Belum masuk pendapatan sampai transaksi dilunasi.' : transaction.status === 'refunded' ? 'Transaksi refund tidak masuk margin kontribusi.' : `Harga jual − HPP produksi${contributionMarginPercent === null ? '.' : ` · margin ${contributionMarginPercent}%.`} Biaya tetap dihitung pada laporan periode, bukan pada transaksi ini.`}</Text>
+            <Text style={styles.profitHelper}>{transaction.status === 'pending' ? 'Belum masuk pendapatan sampai transaksi dilunasi.' : transaction.status === 'refunded' ? 'Transaksi refund tidak masuk margin kontribusi.' : `Harga jual − HPP produksi${contributionMarginPercent === null ? '.' : ` · margin ${contributionMarginPercent}%.`}`}</Text>
             {directlyHealthy !== null ? (
               <View style={[styles.healthNote, directlyHealthy ? styles.healthNoteHealthy : styles.healthNoteUnhealthy]}>
                 <Text style={[styles.healthTitle, directlyHealthy ? styles.healthTitleHealthy : styles.healthTitleUnhealthy]}>{directlyHealthy ? 'Sehat secara langsung' : 'Harga di bawah HPP produksi'}</Text>
-                <Text style={styles.healthText}>{directlyHealthy ? 'Harga jual menutup HPP produksi. Besarnya biaya tetap per box tidak mengubah status transaksi ini.' : 'Harga jual belum menutup biaya adonan, kemasan, dan topping.'}</Text>
+                <Text style={styles.healthText}>{directlyHealthy ? 'Harga jual menutup HPP produksi.' : 'Harga jual belum menutup biaya adonan, kemasan, dan topping.'}</Text>
               </View>
             ) : null}
           </GlassCard>

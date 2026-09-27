@@ -101,11 +101,7 @@ export function ReportsScreen() {
   const costPerItem = summary?.costPerItem ?? 0;
   const productionCost = summary?.productionCost ?? 0;
   const contribution = summary?.contributionMargin ?? 0;
-  const periodFixedCost = summary?.periodFixedCost ?? 0;
-  const monthlyFixedCost = summary?.monthlyFixedCost ?? 4_480_000;
-  const fixedCostPerBox = summary?.fixedCostPerBox ?? null;
   const boxCount = summary?.boxCount ?? pieceCount / 12;
-  const netBusinessProfit = summary?.netBusinessProfit ?? summary?.netProfit ?? 0;
   const contributionHelper = !pieceCount
     ? 'Belum ada penjualan untuk menghitung kontribusi'
     : summary?.contributionMarginPercent === null || summary?.contributionMarginPercent === undefined
@@ -133,21 +129,13 @@ export function ReportsScreen() {
         <View style={styles.hppPeriodTotals}>
           <HppTotal label="HPP produksi" value={productionCost} />
           <HppTotal label="Margin kontribusi" value={contribution} />
-          <HppTotal label="Biaya tetap periode" value={periodFixedCost} />
-          <HppTotal emphasized label="Laba bersih usaha" negative={netBusinessProfit < 0} value={netBusinessProfit} />
         </View>
         <View style={styles.hppAssumption}>
-          <Text style={styles.hppAssumptionTitle}>Biaya tetap dihitung pada akhir periode</Text>
-          <Text style={styles.hppAssumptionText}>Margin kontribusi = penjualan − HPP produksi. Biaya tetap bulanan {formatCurrency(monthlyFixedCost)} diprorata sesuai hari pada periode laporan, lalu dikurangkan sekali untuk memperoleh laba bersih usaha.</Text>
+          <Text style={styles.hppAssumptionTitle}>Perhitungan margin kontribusi</Text>
+          <Text style={styles.hppAssumptionText}>Margin kontribusi = penjualan − HPP produksi.</Text>
         </View>
         <View style={styles.volumeAnalysis}>
           <View style={styles.volumeMetric}><Text style={styles.volumeLabel}>Ekuivalen box terjual</Text><Text style={styles.volumeValue}>{boxCount.toLocaleString('id-ID', { maximumFractionDigits: 2 })} box</Text></View>
-          <View style={styles.volumeMetric}><Text style={styles.volumeLabel}>Indikator biaya tetap / box</Text><Text style={styles.volumeValue}>{fixedCostPerBox === null ? '—' : formatCurrency(fixedCostPerBox)}</Text></View>
-        </View>
-        <View style={styles.targetNote}>
-          <Text style={styles.targetTitle}>Target volume operasional</Text>
-          <Text style={styles.targetText}>Target 208 box menghasilkan indikator {formatCurrency(21_538)} / box. Target 300–312 box lebih masuk akal, dengan indikator sekitar {formatCurrency(14_933)}–{formatCurrency(14_359)} / box.</Text>
-          <Text style={styles.targetText}>Jadul reseller {formatCurrency(28_000)} memberi margin kontribusi {formatCurrency(14_206)} / box dan tetap sehat secara langsung, tetapi marginnya paling tipis sehingga harganya perlu dievaluasi.</Text>
         </View>
         <Text style={styles.hppAssumptionTitle}>Acuan HPP produksi per box isi 12</Text>
         <View style={styles.hppReferenceList}>
@@ -230,11 +218,11 @@ function RankingRow({ index, name, sold, revenue }: { index: number; name: strin
   );
 }
 
-function HppTotal({ label, value, emphasized = false, negative = false }: { label: string; value: number; emphasized?: boolean; negative?: boolean }) {
+function HppTotal({ label, value }: { label: string; value: number }) {
   return (
-    <View style={[styles.hppTotal, emphasized && styles.hppTotalEmphasized, negative && styles.hppTotalNegative]}>
+    <View style={styles.hppTotal}>
       <Text style={styles.hppTotalLabel}>{label}</Text>
-      <Text style={[styles.hppTotalValue, emphasized && styles.hppTotalValueEmphasized, negative && styles.hppTotalValueNegative]}>{formatCurrency(value)}</Text>
+      <Text style={styles.hppTotalValue}>{formatCurrency(value)}</Text>
     </View>
   );
 }
@@ -266,12 +254,8 @@ const styles = StyleSheet.create({
   hppCardCompact: { padding: spacing.md },
   hppPeriodTotals: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   hppTotal: { flexGrow: 1, flexBasis: 140, minWidth: 0, borderRadius: radius.md, padding: spacing.md, backgroundColor: 'rgba(107,63,42,0.06)' },
-  hppTotalEmphasized: { backgroundColor: palette.honeySoft },
-  hppTotalNegative: { backgroundColor: palette.dangerSoft },
   hppTotalLabel: { color: palette.muted, fontFamily: type.medium, fontSize: 11 },
   hppTotalValue: { color: palette.ink, fontFamily: type.bold, fontSize: 17, marginTop: spacing.xxs, fontVariant: ['tabular-nums'] },
-  hppTotalValueEmphasized: { color: palette.cocoa },
-  hppTotalValueNegative: { color: palette.danger },
   hppAssumption: { borderTopWidth: 1, borderTopColor: palette.line, paddingTop: spacing.md },
   hppAssumptionTitle: { color: palette.ink, fontFamily: type.semibold, fontSize: 12 },
   hppAssumptionText: { color: palette.muted, fontFamily: type.regular, fontSize: 11, lineHeight: 17, marginTop: spacing.xxs },
@@ -279,9 +263,6 @@ const styles = StyleSheet.create({
   volumeMetric: { flexGrow: 1, flexBasis: 180, minWidth: 0, borderRadius: radius.sm, padding: spacing.md, backgroundColor: palette.infoSoft },
   volumeLabel: { color: palette.info, fontFamily: type.medium, fontSize: 10 },
   volumeValue: { color: palette.ink, fontFamily: type.bold, fontSize: 16, marginTop: spacing.xxs, fontVariant: ['tabular-nums'] },
-  targetNote: { borderRadius: radius.md, padding: spacing.md, backgroundColor: palette.honeySoft, gap: spacing.xs },
-  targetTitle: { color: palette.cocoa, fontFamily: type.bold, fontSize: 12 },
-  targetText: { color: palette.inkSoft, fontFamily: type.regular, fontSize: 11, lineHeight: 17 },
   hppReferenceList: { borderTopWidth: 1, borderTopColor: palette.line },
   hppReferenceRow: { minHeight: 72, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md, paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: palette.line },
   hppReferenceCopy: { flex: 1, minWidth: 0 },
